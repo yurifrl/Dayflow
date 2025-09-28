@@ -8,7 +8,6 @@
 import AppKit
 import ServiceManagement
 import ScreenCaptureKit
-import PostHog
 import Combine
 
 @MainActor
@@ -26,12 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Block termination by default; only specific flows enable it.
         AppDelegate.allowTermination = false
         // Configure analytics (prod only; default opt-in ON)
-        let info = Bundle.main.infoDictionary
-        let POSTHOG_API_KEY = info?["PHPostHogApiKey"] as? String ?? ""
-        let POSTHOG_HOST = info?["PHPostHogHost"] as? String ?? "https://us.i.posthog.com"
-        if !POSTHOG_API_KEY.isEmpty {
-            AnalyticsService.shared.start(apiKey: POSTHOG_API_KEY, host: POSTHOG_HOST)
-        }
+        AnalyticsService.shared.start()
 
         // App opened (cold start)
         AnalyticsService.shared.capture("app_opened", ["cold_start": true])
@@ -131,18 +125,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             AnalysisManager.shared.startAnalysisJob()
             print("AppDelegate: Gemini analysis job started")
-            AnalyticsService.shared.capture("analysis_job_started", [
-                "provider": {
-                    if let data = UserDefaults.standard.data(forKey: "llmProviderType"),
-                       let providerType = try? JSONDecoder().decode(LLMProviderType.self, from: data) {
-                        switch providerType {
-                        case .geminiDirect: return "gemini"
-                        case .dayflowBackend: return "dayflow"
-                        case .ollamaLocal: return "ollama"
-                        }
-                    }
-                    return "unknown"
-                }()
+                    AnalyticsService.shared.capture("analysis_job_started", [
+                        "provider": {
+                            if let data = UserDefaults.standard.data(forKey: "llmProviderType"),
+                               let providerType = try? JSONDecoder().decode(LLMProviderType.self, from: data) {
+                                switch providerType {
+                                case .geminiDirect: return "gemini"
+                                case .ollamaLocal: return "ollama"
+                                }
+                            }
+                            return "unknown"
+                        }()
             ])
         }
     }

@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Sparkle
 
 struct AppRootView: View {
     @EnvironmentObject private var categoryStore: CategoryStore
@@ -32,7 +31,7 @@ struct DayflowApp: App {
         // UserDefaults.standard.set(false, forKey: "didOnboard")
     }
     
-    // Sparkle updater manager
+    // Enterprise updater stub (no network traffic)
     private let updaterManager = UpdaterManager.shared
 
     var body: some Scene {
@@ -119,12 +118,6 @@ struct DayflowApp: App {
                 .keyboardShortcut("R", modifiers: [.command, .shift])
             }
             
-            // Add Sparkle's update menu item
-            CommandGroup(after: .appInfo) {
-                Button("Check for Updates…") {
-                    updaterManager.checkForUpdates(showUI: true)
-                }
-            }
         }
         .defaultSize(width: 1200, height: 800)
     }

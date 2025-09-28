@@ -2,17 +2,12 @@
 //  AnalyticsService.swift
 //  Dayflow
 //
-//  Centralized analytics wrapper for PostHog. Provides
-//  - identity management (anonymous UUID stored in Keychain)
-//  - opt-in gate (default ON)
-//  - super properties and person properties
-//  - sampling and throttling helpers
-//  - safe, PII-free capture helpers and bucketing utils
-//
+//  Centralized analytics façade. In the enterprise build analytics are
+//  disabled, but we keep the surface area so the rest of the app can
+//  interact with it without touching network APIs.
 
 import Foundation
 import AppKit
-import PostHog
 
 @MainActor
 final class AnalyticsService {
@@ -37,29 +32,13 @@ final class AnalyticsService {
         }
     }
 
-    func start(apiKey: String, host: String) {
-        let config = PostHogConfig(apiKey: apiKey, host: host)
-        // Disable autocapture for privacy
-        config.captureApplicationLifecycleEvents = false
-        PostHogSDK.shared.setup(config)
-
-        // Identity
-        let id = ensureDistinctId()
-        PostHogSDK.shared.identify(id)
-
-        // Super properties at launch
+    func start() {
+        // Still initialize local identity so toggles behave deterministically.
+        _ = ensureDistinctId()
         registerInitialSuperProperties()
-
-        // Person properties via $set / $set_once
-        var set: [String: Any] = [
-            "analytics_opt_in": isOptedIn
-        ]
-        var payload: [String: Any] = ["$set": sanitize(set)]
         if !UserDefaults.standard.bool(forKey: "installTsSent") {
-            payload["$set_once"] = ["install_ts": iso8601Now()]
             UserDefaults.standard.set(true, forKey: "installTsSent")
         }
-        PostHogSDK.shared.capture("person_props_updated", properties: payload)
     }
 
     @discardableResult
@@ -79,7 +58,7 @@ final class AnalyticsService {
 
     func capture(_ name: String, _ props: [String: Any] = [:]) {
         guard isOptedIn else { return }
-        PostHogSDK.shared.capture(name, properties: sanitize(props))
+        // No-op: analytics disabled in this build. Keep hook for future logging if needed.
     }
 
     func screen(_ name: String, _ props: [String: Any] = [:]) {
@@ -89,7 +68,6 @@ final class AnalyticsService {
 
     func identify(_ distinctId: String, properties: [String: Any] = [:]) {
         guard isOptedIn else { return }
-        PostHogSDK.shared.identify(distinctId)
         if !properties.isEmpty {
             setPersonProperties(properties)
         }
@@ -97,18 +75,14 @@ final class AnalyticsService {
 
     func alias(_ aliasId: String) {
         guard isOptedIn else { return }
-        PostHogSDK.shared.alias(aliasId)
     }
 
     func registerSuperProperties(_ props: [String: Any]) {
         guard isOptedIn else { return }
-        PostHogSDK.shared.register(sanitize(props))
     }
 
     func setPersonProperties(_ props: [String: Any]) {
         guard isOptedIn else { return }
-        let payload: [String: Any] = ["$set": sanitize(props)]
-        PostHogSDK.shared.capture("person_props_updated", properties: payload)
     }
 
     func throttled(_ key: String, minInterval: TimeInterval, action: () -> Void) {

@@ -82,7 +82,7 @@ struct OnboardingFlow: View {
                         selectedProvider = provider
                         AnalyticsService.shared.capture("llm_provider_selected", ["provider": provider])
                         AnalyticsService.shared.setPersonProperties(["current_llm_provider": provider])
-                        step = provider == "dayflow" ? .categories : .llmSetup
+                        step = .llmSetup
                         savedStepRawValue = step.rawValue
                     }
                 )
@@ -205,11 +205,7 @@ struct OnboardingFlow: View {
             }
         case .llmSelection:
             markStepCompleted(step)
-            if selectedProvider == "dayflow" {
-                step = .categories
-            } else {
-                step = .llmSetup
-            }
+            step = .llmSetup
             savedStepRawValue = step.rawValue
         case .llmSetup:
             markStepCompleted(step)

@@ -51,7 +51,7 @@ struct FlexibleProviderCard: View {
         self.buttonMode = buttonMode
         self.showCurrentlySelected = showCurrentlySelected
         self.onSelect = onSelect
-        self.isComingSoon = id == "dayflow"
+        self.isComingSoon = false
     }
     
     var body: some View {

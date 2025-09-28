@@ -61,13 +61,6 @@ final class StatusBarController {
         open.target = self               // ← add this line
         m.addItem(open)
 
-        // Check for Updates… (Sparkle)
-        let updates = NSMenuItem(title: "Check for Updates…",
-                                 action: #selector(checkForUpdates),
-                                 keyEquivalent: "")
-        updates.target = self
-        m.addItem(updates)
-        
         m.addItem(NSMenuItem.separator())
 
         // Quit Completely
@@ -97,7 +90,6 @@ final class StatusBarController {
         }
     }
     @objc private func toggle() { AppState.shared.isRecording.toggle() }
-    @objc private func checkForUpdates() { UpdaterManager.shared.checkForUpdates(showUI: true) }
     @objc private func quit()   {
         // Allow termination only when explicitly quitting from the status bar
         AppDelegate.allowTermination = true

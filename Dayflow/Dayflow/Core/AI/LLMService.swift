@@ -78,28 +78,11 @@ final class LLMService: LLMServicing {
                 if let _ = UserDefaults.standard.object(forKey: "llmProviderType") {
                     print("   ✅ UserDefaults IS accessible")
                 } else {
-                    print("   ❌ UserDefaults also appears inaccessible")
+                print("   ❌ UserDefaults also appears inaccessible")
                 }
                 
                 return nil
             }
-            
-        case .dayflowBackend(let endpoint):
-            print("🔑 [LLMService] Attempting to retrieve Dayflow token from Keychain...")
-            print("   Endpoint: \(endpoint)")
-            
-            if let token = KeychainManager.shared.retrieve(for: "dayflow") {
-                print("✅ [LLMService] Token retrieved (length: \(token.count))")
-                if token.isEmpty {
-                    print("❌ [LLMService] Token is empty string")
-                    return nil
-                }
-                return DayflowBackendProvider(token: token, endpoint: endpoint)
-            } else {
-                print("❌ [LLMService] Failed to retrieve Dayflow token from Keychain")
-                return nil
-            }
-            
         case .ollamaLocal(let endpoint):
             print("🦙 [LLMService] Creating OllamaProvider")
             print("   Endpoint: \(endpoint)")

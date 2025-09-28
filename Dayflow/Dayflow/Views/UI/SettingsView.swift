@@ -79,16 +79,6 @@ struct SettingsView: View {
                                     UserDefaults.standard.set(localModelId, forKey: "llmLocalModelId")
                                 }
                             )
-                        } else if currentProvider == "dayflow" {
-                            HStack(spacing: 8) {
-                                Image(systemName: "info.circle")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.black.opacity(0.5))
-                                Text("Testing Dayflow Pro connection isn’t available yet.")
-                                    .font(.custom("Nunito", size: 13))
-                                    .foregroundColor(.black.opacity(0.6))
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
                         } else {
                             // Unknown provider fallback
                             HStack(spacing: 8) {
@@ -200,28 +190,7 @@ struct SettingsView: View {
                 isSelected: currentProvider == "gemini",
                 buttonMode: .settings(onSwitch: { switchToProvider("gemini") }),
                 showCurrentlySelected: true
-            ),
-            
-            /*
-            FlexibleProviderCard(
-                id: "dayflow",
-                title: "Dayflow Pro",
-                badgeText: "EASIEST SETUP",
-                badgeType: .blue,
-                icon: "sparkles",
-                features: [
-                    ("Zero setup - just sign in and go", true),
-                    ("Your data is processed then immediately deleted", true),
-                    ("Never used to train AI models", true),
-                    ("Always the fastest, most capable AI", true),
-                    ("Fixed monthly pricing, no surprises", true),
-                    ("Requires internet connection", false)
-                ],
-                isSelected: currentProvider == "dayflow",
-                buttonMode: .settings(onSwitch: { switchToProvider("dayflow") }),
-                showCurrentlySelected: true
             )
-            */
         ]
     }
 
@@ -233,8 +202,6 @@ struct SettingsView: View {
             switch providerType {
             case .geminiDirect:
                 currentProvider = "gemini"
-            case .dayflowBackend:
-                currentProvider = "dayflow"
             case .ollamaLocal:
                 currentProvider = "ollama"
             }
@@ -244,12 +211,6 @@ struct SettingsView: View {
     
     private func switchToProvider(_ providerId: String) {
         guard providerId != currentProvider else { return }
-        
-        // For Dayflow Pro, just show coming soon
-        if providerId == "dayflow" {
-            return
-        }
-        
         // Open setup flow for the selected provider
         AnalyticsService.shared.capture("provider_switch_initiated", ["from": currentProvider, "to": providerId])
         setupModalProvider = providerId
@@ -264,8 +225,6 @@ struct SettingsView: View {
             providerType = .ollamaLocal(endpoint: endpoint)
         case "gemini":
             providerType = .geminiDirect
-        case "dayflow":
-            providerType = .dayflowBackend()
         default:
             return
         }

@@ -170,20 +170,11 @@ struct LLMProviderSetupView: View {
                     DayflowSurfaceButton(
                         action: { setupState.selectEngine(.ollama); openOllamaDownload() },
                         content: {
-                            AsyncImage(url: URL(string: "https://ollama.com/public/ollama.png")) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image
-                                        .renderingMode(.template)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .foregroundColor(.white)
-                                case .failure(_): Image(systemName: "shippingbox").resizable().scaledToFit().foregroundColor(.white.opacity(0.6))
-                                case .empty: ProgressView().scaleEffect(0.7)
-                                @unknown default: EmptyView()
-                                }
-                            }
-                            .frame(width: 18, height: 18)
+                            Image(systemName: "shippingbox")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 18, height: 18)
+                                .foregroundColor(.white)
                             Text("Download Ollama")
                                 .font(.custom("Nunito", size: 14))
                                 .fontWeight(.semibold)
@@ -201,15 +192,11 @@ struct LLMProviderSetupView: View {
                     DayflowSurfaceButton(
                         action: { setupState.selectEngine(.lmstudio); openLMStudioDownload() },
                         content: {
-                            AsyncImage(url: URL(string: "https://lmstudio.ai/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Flmstudio-app-logo.11b4d746.webp&w=96&q=75")) { phase in
-                                switch phase {
-                                case .success(let image): image.resizable().scaledToFit()
-                                case .failure(_): Image(systemName: "desktopcomputer").resizable().scaledToFit().foregroundColor(.white.opacity(0.6))
-                                case .empty: ProgressView().scaleEffect(0.7)
-                                @unknown default: EmptyView()
-                                }
-                            }
-                            .frame(width: 18, height: 18)
+                            Image(systemName: "desktopcomputer")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 18, height: 18)
+                                .foregroundColor(.white)
                             Text("Download LM Studio")
                                 .font(.custom("Nunito", size: 14))
                                 .fontWeight(.semibold)
