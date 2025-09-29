@@ -6,6 +6,8 @@
 	<string>.</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.32</string>
+	<key>CFBundleShortVersionStringTag</key>
+	<string>1.0.32-y1</string>
 	<key>CFBundleVersion</key>
 	<string>31</string>
 	<key>NSScreenCaptureUsageDescription</key>
