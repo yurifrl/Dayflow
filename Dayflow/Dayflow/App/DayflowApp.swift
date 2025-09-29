@@ -10,11 +10,13 @@ struct AppRootView: View {
     @State private var whatsNewNote: ReleaseNote? = nil
     @State private var activeWhatsNewVersion: String? = nil
     @State private var shouldMarkWhatsNewSeen = false
+    @StateObject private var obsidianSettings = ObsidianSettingsStore()
 
     var body: some View {
         MainView()
             .environmentObject(AppState.shared)
             .environmentObject(categoryStore)
+            .environmentObject(obsidianSettings)
             .onAppear {
                 guard whatsNewNote == nil else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
