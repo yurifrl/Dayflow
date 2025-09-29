@@ -1,81 +1,85 @@
 import SwiftUI
 
 struct SunriseGlassPillToggleStyle: ToggleStyle {
-  var onColors: [Color] = [
-    Color(red: 1.00, green: 0.85, blue: 0.72),  // slightly deeper peach
-    Color(hex: "FF7506"),  // darker brand orange
-  ]
-  var offColors: [Color] = [
-    Color(hex: "F0E9E6"),
-    Color(hex: "F0E9E6"),
-  ]
-  var trackWidth: CGFloat = 64
-  var trackHeight: CGFloat = 32
-  var knobSize: CGFloat = 28
+    var onColors: [Color] = [
+        Color(hex: "FFB169"),
+        Color(hex: "FF7506")
+    ]
+    var offColors: [Color] = [
+        Color(hex: "E8EBF0"),
+        Color(hex: "D6DAE0")
+    ]
+    var trackWidth: CGFloat = 64
+    var trackHeight: CGFloat = 32
+    var knobSize: CGFloat = 28
 
-  @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorScheme) private var scheme
 
-  func makeBody(configuration: Configuration) -> some View {
-    let isOn = configuration.isOn
-    Button {
-      withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-        configuration.isOn.toggle()
-        #if os(iOS)
-          UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        #endif
-      }
-    } label: {
-      ZStack(alignment: isOn ? .trailing : .leading) {
+    func makeBody(configuration: Configuration) -> some View {
+        let isOn = configuration.isOn
+        Button {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                configuration.isOn.toggle()
+                #if os(iOS)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+            }
+        } label: {
+            ZStack {
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: isOn ? onColors : offColors,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.black.opacity(isOn ? 0.08 : 0.12), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(isOn ? 0.2 : 0.08), radius: isOn ? 6 : 3, x: 0, y: isOn ? 3 : 2)
 
-        // Track
-        Capsule()
-          .fill(
-            LinearGradient(
-              colors: isOn ? onColors : offColors,
-              startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-          )
-          .overlay(
-            Capsule()
-              .strokeBorder(.white.opacity(isOn ? 0.35 : 0.45), lineWidth: 1)
-              .blendMode(.overlay)
-          )
-          .overlay(
-            Capsule()
-              .stroke(Color(hex: "E5E5E5"), lineWidth: 1)
-              .opacity(0.9)
-          )
-          .overlay(
-            // Subtle top highlight to match chips/date pill gloss
-            Capsule()
-              .fill(.white.opacity(isOn ? 0.18 : 0.12))
-              .frame(height: trackHeight * 0.55)
-              .offset(y: -trackHeight * 0.22)
-              .blur(radius: 2)
-          )
-          .background(
-            Capsule().fill(.ultraThinMaterial)
-          )
-          .frame(width: trackWidth, height: trackHeight)
+                Text(isOn ? "ON" : "OFF")
+                    .font(.system(size: 9, weight: .heavy, design: .rounded))
+                    .tracking(0.8)
+                    .foregroundColor(isOn ? Color.white.opacity(0.9) : Color.black.opacity(0.55))
+                    .allowsHitTesting(false)
 
-        // Knob
-        Circle()
-          .fill(
-            RadialGradient(
-              colors: [Color.white, Color.white.opacity(0.65)],
-              center: .center, startRadius: 1, endRadius: knobSize
-            )
-          )
-          .overlay(
-            Circle().strokeBorder(.black.opacity(0.06), lineWidth: 0.75)
-          )
-          .frame(width: knobSize, height: knobSize)
-          .padding(2)
-      }
-      .accessibilityElement(children: .ignore)
-      .accessibilityValue(Text(isOn ? "On" : "Off"))
+                HStack {
+                    if isOn { Spacer(minLength: 0) }
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                gradient: Gradient(colors: knobGradient(for: isOn)),
+                                center: .center,
+                                startRadius: 2,
+                                endRadius: knobSize / 2
+                            )
+                        )
+                        .overlay(
+                            Circle().stroke(Color.black.opacity(0.08), lineWidth: 0.7)
+                        )
+                        .shadow(color: Color.black.opacity(0.15), radius: 2.5, x: 0, y: 1)
+                        .frame(width: knobSize - 4, height: knobSize - 4)
+                    if !isOn { Spacer(minLength: 0) }
+                }
+                .padding(.horizontal, 4)
+                .frame(width: trackWidth, height: trackHeight)
+                .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isOn)
+            }
+            .frame(width: trackWidth, height: trackHeight)
+            .accessibilityElement(children: .ignore)
+            .accessibilityValue(Text(isOn ? "On" : "Off"))
+        }
+        .buttonStyle(.plain)
     }
-    .buttonStyle(.plain)
-    .pointingHandCursor()
-  }
+
+    private func knobGradient(for isOn: Bool) -> [Color] {
+        if isOn {
+            return [Color.white, Color(hex: "FFE6CF")]
+        } else {
+            return [Color.white, Color(hex: "DEE3EA")]
+        }
+    }
 }
