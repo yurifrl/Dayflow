@@ -16,3 +16,6 @@ signed/
 # Ignore Claude prompt notes
 CLAUDE.md
 claude.md
+.derivedData/
+sec-analysis.md
+TODO.md
