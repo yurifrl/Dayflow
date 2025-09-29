@@ -6,6 +6,8 @@
 	<string>.</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.9.2</string>
+	<key>CFBundleShortVersionStringTag</key>
+	<string>1.7.0-y1</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
