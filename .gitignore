@@ -29,3 +29,6 @@ tools/
 # Eval frameworks
 claudeeval/
 codexeval/
+.derivedData/
+sec-analysis.md
+TODO.md
