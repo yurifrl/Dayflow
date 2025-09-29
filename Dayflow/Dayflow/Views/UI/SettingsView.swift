@@ -6,9 +6,11 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct SettingsView: View {
     @EnvironmentObject private var updater: UpdaterManager
+    @EnvironmentObject private var obsidianSettingsStore: ObsidianSettingsStore
     // State for current provider
     @State private var currentProvider: String = "gemini"
     @State private var setupModalProvider: String? = nil
@@ -96,6 +98,8 @@ struct SettingsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 10)
+
+                obsidianSettingsSection
 
                 Spacer(minLength: 30)
 
@@ -192,6 +196,179 @@ struct SettingsView: View {
                 showCurrentlySelected: true
             )
         ]
+    }
+
+    private var obsidianSettingsSection: some View {
+        let settings = obsidianSettingsStore.settings
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Obsidian Export")
+                    .font(.custom("Nunito", size: 16).weight(.semibold))
+                    .foregroundColor(.black.opacity(0.9))
+
+                Spacer()
+
+                Text(settings.isEnabled ? "Enabled" : "Disabled")
+                    .font(.custom("Nunito", size: 12).weight(.semibold))
+                    .foregroundColor(settings.isEnabled ? Color(hex: "0F9154") : Color.black.opacity(0.4))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(settings.isEnabled ? Color(hex: "E5F7ED") : Color.black.opacity(0.05))
+                    )
+            }
+
+            Text("Automatically send your daily journal to an Obsidian vault.")
+                .font(.custom("Nunito", size: 13))
+                .foregroundColor(.black.opacity(0.6))
+
+            Toggle(isOn: Binding(
+                get: { obsidianSettingsStore.settings.isEnabled },
+                set: { obsidianSettingsStore.settings.isEnabled = $0 }
+            )) {
+                Text("Enable Obsidian export")
+                    .font(.custom("Nunito", size: 13))
+                    .foregroundColor(.black.opacity(0.75))
+            }
+            .toggleStyle(.switch)
+            .tint(Color(hex: "FF7506"))
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Destination directory")
+                    .font(.custom("Nunito", size: 12).weight(.semibold))
+                    .foregroundColor(.black.opacity(0.7))
+
+                HStack(spacing: 10) {
+                    settingsTextField(
+                        placeholder: "~/Documents/Notes",
+                        text: Binding(
+                            get: { obsidianSettingsStore.settings.directoryPath },
+                            set: { obsidianSettingsStore.settings.directoryPath = $0 }
+                        )
+                    )
+                    .frame(minWidth: 280)
+
+                    Button(action: chooseDirectory) {
+                        Label("Choose…", systemImage: "folder")
+                            .labelStyle(.titleAndIcon)
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text("Dayflow writes or appends to `YYYY-MM-DD.md` inside this folder.")
+                    .font(.custom("Nunito", size: 11))
+                    .foregroundColor(.black.opacity(0.45))
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Write position")
+                    .font(.custom("Nunito", size: 12).weight(.semibold))
+                    .foregroundColor(.black.opacity(0.7))
+
+                Picker("Write position", selection: Binding(
+                    get: { obsidianSettingsStore.settings.writePosition },
+                    set: { obsidianSettingsStore.settings.writePosition = $0 }
+                )) {
+                    ForEach(ObsidianWritePosition.allCases) { position in
+                        Text(position.label).tag(position)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if settings.writePosition.requiresAnchor {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(settings.writePosition == .afterLine ? "Insert after first line containing" : "Insert before first line containing")
+                            .font(.custom("Nunito", size: 12).weight(.semibold))
+                            .foregroundColor(.black.opacity(0.7))
+
+                        settingsTextField(
+                            placeholder: "e.g. ## Daily Notes",
+                            text: Binding(
+                                get: { obsidianSettingsStore.settings.anchorText },
+                                set: { obsidianSettingsStore.settings.anchorText = $0 }
+                            )
+                        )
+
+                        Text("If the anchor isn’t found, Dayflow appends the journal to the end of the file.")
+                            .font(.custom("Nunito", size: 11))
+                            .foregroundColor(.black.opacity(0.45))
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Section title")
+                    .font(.custom("Nunito", size: 12).weight(.semibold))
+                    .foregroundColor(.black.opacity(0.7))
+
+                settingsTextField(
+                    placeholder: "☀️ Dailyflow",
+                    text: Binding(
+                        get: { obsidianSettingsStore.settings.title },
+                        set: { obsidianSettingsStore.settings.title = $0 }
+                    )
+                )
+
+                Text("This heading is added above the exported journal content.")
+                    .font(.custom("Nunito", size: 11))
+                    .foregroundColor(.black.opacity(0.45))
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.95))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(hex: "E5E5E5"), lineWidth: 1)
+        )
+        .padding(.horizontal, 10)
+    }
+
+    private func chooseDirectory() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            obsidianSettingsStore.settings.directoryPath = url.path
+            // Store security-scoped bookmark for later access
+            do {
+                let bookmark = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+                obsidianSettingsStore.settings.directoryBookmark = bookmark
+            } catch {
+                print("Failed to create bookmark: \(error)")
+                obsidianSettingsStore.settings.directoryBookmark = nil
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func settingsTextField(placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: text)
+            .textFieldStyle(.plain)
+            .font(.custom("Nunito", size: 13))
+            .foregroundColor(.black)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.white.opacity(0.98))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.black.opacity(0.12), lineWidth: 1)
+            )
     }
 
     private func loadCurrentProvider() {

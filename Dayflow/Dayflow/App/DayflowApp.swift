@@ -9,10 +9,12 @@ import SwiftUI
 
 struct AppRootView: View {
     @EnvironmentObject private var categoryStore: CategoryStore
+    @StateObject private var obsidianSettings = ObsidianSettingsStore()
     var body: some View {
         MainView()
             .environmentObject(AppState.shared)
             .environmentObject(categoryStore)
+            .environmentObject(obsidianSettings)
     }
 }
 
