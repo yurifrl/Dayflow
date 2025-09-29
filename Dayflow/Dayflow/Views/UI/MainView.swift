@@ -81,7 +81,12 @@ struct MainView: View {
                     DashboardView()
                         .padding(15)
                 case .journal:
-                    JournalView()
+                    JournalView(
+                        selectedDate: $selectedDate,
+                        showDatePicker: $showDatePicker,
+                        lastDateNavMethod: $lastDateNavMethod,
+                        previousDate: $previousDate
+                    )
                         .padding(15)
                 case .bug:
                     BugReportView()
