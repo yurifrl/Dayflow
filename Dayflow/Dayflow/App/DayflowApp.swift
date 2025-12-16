@@ -11,12 +11,21 @@ struct AppRootView: View {
     @State private var activeWhatsNewVersion: String? = nil
     @State private var shouldMarkWhatsNewSeen = false
     @StateObject private var obsidianSettings = ObsidianSettingsStore()
+    @StateObject private var autoDailyReportSettings = AutoDailyReportSettingsStore()
+    @StateObject private var autoDailyReportService = AutoDailyReportService.shared
 
     var body: some View {
         MainView()
             .environmentObject(AppState.shared)
             .environmentObject(categoryStore)
             .environmentObject(obsidianSettings)
+            .environmentObject(autoDailyReportSettings)
+            .onAppear {
+                autoDailyReportService.start()
+            }
+            .onDisappear {
+                autoDailyReportService.stop()
+            }
             .onAppear {
                 guard whatsNewNote == nil else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

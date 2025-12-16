@@ -18,8 +18,10 @@ struct SunriseGlassPillToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         let isOn = configuration.isOn
         Button {
+            print("[SunriseToggle] Button tapped, current state: \(isOn)")
             withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
                 configuration.isOn.toggle()
+                print("[SunriseToggle] After toggle: \(configuration.isOn)")
                 #if os(iOS)
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 #endif
