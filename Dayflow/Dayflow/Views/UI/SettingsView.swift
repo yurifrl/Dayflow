@@ -11,6 +11,7 @@ import AppKit
 struct SettingsView: View {
     @EnvironmentObject private var updater: UpdaterManager
     @EnvironmentObject private var obsidianSettingsStore: ObsidianSettingsStore
+    @EnvironmentObject private var autoDailyReportSettingsStore: AutoDailyReportSettingsStore
     // State for current provider
     @State private var currentProvider: String = "gemini"
     @State private var setupModalProvider: String? = nil
@@ -100,6 +101,8 @@ struct SettingsView: View {
                 .padding(.leading, 10)
 
                 obsidianSettingsSection
+
+                autoDailyReportSettingsSection
 
                 Spacer(minLength: 30)
 
@@ -198,6 +201,87 @@ struct SettingsView: View {
         ]
     }
 
+    private var autoDailyReportSettingsSection: some View {
+        let settings = autoDailyReportSettingsStore.settings
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Auto Daily Report")
+                    .font(.custom("Nunito", size: 16).weight(.semibold))
+                    .foregroundColor(.black.opacity(0.9))
+
+                Spacer()
+
+                Text(settings.isEnabled ? "Enabled" : "Disabled")
+                    .font(.custom("Nunito", size: 12).weight(.semibold))
+                    .foregroundColor(settings.isEnabled ? Color(hex: "0F9154") : Color.black.opacity(0.4))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(settings.isEnabled ? Color(hex: "E5F7ED") : Color.black.opacity(0.05))
+                    )
+            }
+
+            Text("Automatically check every hour and create yesterday's report if it doesn't exist.")
+                .font(.custom("Nunito", size: 13))
+                .foregroundColor(.black.opacity(0.6))
+
+            Toggle(isOn: Binding(
+                get: { autoDailyReportSettingsStore.settings.isEnabled },
+                set: { newValue in
+                    autoDailyReportSettingsStore.settings.isEnabled = newValue
+                    if newValue {
+                        AutoDailyReportService.shared.start()
+                    } else {
+                        AutoDailyReportService.shared.stop()
+                    }
+                }
+            )) {
+                Text("Enable auto daily report")
+                    .font(.custom("Nunito", size: 13))
+                    .foregroundColor(.black.opacity(0.75))
+            }
+            .toggleStyle(SwitchToggleStyle(tint: Color(hex: "FF7506")))
+
+            if settings.isEnabled {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let lastRun = settings.lastRunTime {
+                        HStack(spacing: 6) {
+                            Text("Last run:")
+                                .font(.custom("Nunito", size: 12).weight(.semibold))
+                                .foregroundColor(.black.opacity(0.6))
+                            Text(formatDateTime(lastRun))
+                                .font(.custom("Nunito", size: 12))
+                                .foregroundColor(.black.opacity(0.5))
+                        }
+                    }
+
+                    if let nextRun = settings.nextRunTime {
+                        HStack(spacing: 6) {
+                            Text("Next run:")
+                                .font(.custom("Nunito", size: 12).weight(.semibold))
+                                .foregroundColor(.black.opacity(0.6))
+                            Text(formatDateTime(nextRun))
+                                .font(.custom("Nunito", size: 12))
+                                .foregroundColor(.black.opacity(0.5))
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.95))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(hex: "E5E5E5"), lineWidth: 1)
+        )
+        .padding(.horizontal, 10)
+    }
+
     private var obsidianSettingsSection: some View {
         let settings = obsidianSettingsStore.settings
         return VStack(alignment: .leading, spacing: 16) {
@@ -271,7 +355,7 @@ struct SettingsView: View {
                     .font(.custom("Nunito", size: 12).weight(.semibold))
                     .foregroundColor(.black.opacity(0.7))
 
-                Picker("Write position", selection: Binding(
+                Picker("", selection: Binding(
                     get: { obsidianSettingsStore.settings.writePosition },
                     set: { obsidianSettingsStore.settings.writePosition = $0 }
                 )) {
@@ -393,6 +477,13 @@ struct SettingsView: View {
         setupModalProvider = providerId
     }
     
+    private func formatDateTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
     private func completeProviderSwitch(_ providerId: String) {
         // Save the provider type
         let providerType: LLMProviderType

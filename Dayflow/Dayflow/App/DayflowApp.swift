@@ -10,11 +10,21 @@ import SwiftUI
 struct AppRootView: View {
     @EnvironmentObject private var categoryStore: CategoryStore
     @StateObject private var obsidianSettings = ObsidianSettingsStore()
+    @StateObject private var autoDailyReportSettings = AutoDailyReportSettingsStore()
+    @StateObject private var autoDailyReportService = AutoDailyReportService.shared
+
     var body: some View {
         MainView()
             .environmentObject(AppState.shared)
             .environmentObject(categoryStore)
             .environmentObject(obsidianSettings)
+            .environmentObject(autoDailyReportSettings)
+            .onAppear {
+                autoDailyReportService.start()
+            }
+            .onDisappear {
+                autoDailyReportService.stop()
+            }
     }
 }
 
