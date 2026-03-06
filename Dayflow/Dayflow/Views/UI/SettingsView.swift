@@ -12,6 +12,7 @@ struct SettingsView: View {
   private enum SettingsTab: String, CaseIterable, Identifiable {
     case storage
     case providers
+    case obsidian
     case data
     case other
 
@@ -21,6 +22,7 @@ struct SettingsView: View {
       switch self {
       case .storage: return "Storage"
       case .providers: return "Providers"
+      case .obsidian: return "Obsidian"
       case .data: return "Export"
       case .other: return "Other"
       }
@@ -30,6 +32,7 @@ struct SettingsView: View {
       switch self {
       case .storage: return "Recording status and disk usage"
       case .providers: return "Manage LLM providers and customize prompts"
+      case .obsidian: return "Vault path & auto-export"
       case .data: return "Export timeline data"
       case .other: return "General preferences & support"
       }
@@ -50,6 +53,8 @@ struct SettingsView: View {
   @StateObject private var storageViewModel = StorageSettingsViewModel()
   @StateObject private var providersViewModel = ProvidersSettingsViewModel()
   @StateObject private var otherViewModel = OtherSettingsViewModel()
+  @StateObject private var obsidianStore = ObsidianSettingsStore()
+  @StateObject private var autoReportStore = AutoDailyReportSettingsStore()
 
   var body: some View {
     contentWithSheets
@@ -245,6 +250,8 @@ struct SettingsView: View {
         SettingsStorageTabView(viewModel: storageViewModel)
       case .providers:
         SettingsProvidersTabView(viewModel: providersViewModel)
+      case .obsidian:
+        SettingsObsidianTabView(obsidianStore: obsidianStore, autoReportStore: autoReportStore)
       case .data:
         SettingsDataTabView(viewModel: otherViewModel)
       case .other:
