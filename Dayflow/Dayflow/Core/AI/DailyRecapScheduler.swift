@@ -369,13 +369,6 @@ final class DailyRecapScheduler: @unchecked Sendable {
       }
     }
 
-    if case .dayflowBackend(let savedEndpoint) = LLMProviderType.load(from: defaults) {
-      let trimmed = savedEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        return trimmed
-      }
-    }
-
     return defaultEndpoint
   }
 

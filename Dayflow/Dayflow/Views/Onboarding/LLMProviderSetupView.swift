@@ -788,7 +788,10 @@ struct LLMProviderSetupView: View {
   private func persistLocalSettings() {
     let endpoint = setupState.localBaseURL
     let type = LLMProviderType.ollamaLocal(endpoint: endpoint)
-    type.persist()
+    UserDefaults.standard.set(providerType, forKey: "selectedLLMProvider")
+    if let encoded = try? JSONEncoder().encode(type) {
+      UserDefaults.standard.set(encoded, forKey: "llmProviderType")
+    }
     // Store model id for local engines
     UserDefaults.standard.set(setupState.localModelId, forKey: "llmLocalModelId")
     LocalModelPreferences.syncPreset(for: setupState.localEngine, modelId: setupState.localModelId)

@@ -85,13 +85,6 @@ final class LLMService: LLMServicing {
         return nil
     }
 
-    private func makeDayflowProvider(endpoint: String) -> DayflowBackendProvider? {
-        if let token = KeychainManager.shared.retrieve(for: "dayflow"), !token.isEmpty {
-            return DayflowBackendProvider(token: token, endpoint: endpoint)
-        }
-        print("❌ [LLMService] Failed to retrieve Dayflow token from Keychain")
-        return nil
-    }
 
     private func makeOllamaProvider(endpoint: String) -> OllamaProvider {
         OllamaProvider(endpoint: endpoint)
@@ -171,18 +164,6 @@ final class LLMService: LLMServicing {
                     }
                 }
             ), fallbackState: fallbackState)
-        case .dayflow:
-            let endpoint: String
-            if case .dayflowBackend(let savedEndpoint) = providerType {
-                endpoint = savedEndpoint
-            } else {
-                endpoint = "https://api.dayflow.app"
-            }
-            guard let provider = makeDayflowProvider(endpoint: endpoint) else { throw noProviderError() }
-            return (actions: BatchProviderActions(
-                transcribeScreenshots: provider.transcribeScreenshots,
-                generateActivityCards: provider.generateActivityCards
-            ), fallbackState: nil)
         case .ollama:
             let endpoint = UserDefaults.standard.string(forKey: "llmLocalBaseURL") ?? "http://localhost:11434"
             let provider = makeOllamaProvider(endpoint: endpoint)
@@ -218,10 +199,6 @@ final class LLMService: LLMServicing {
             return nil
         }
 
-        // Dayflow backend isn't currently supported in provider settings.
-        if backupProvider == .dayflow {
-            return nil
-        }
 
         let chatToolOverride: ChatCLITool?
         if backupProvider == .chatGPTClaude {

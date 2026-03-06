@@ -6,7 +6,6 @@
 //  disabled, but we keep the surface area so the rest of the app can
 //  interact with it without touching network APIs.
 
-import Foundation
 import AppKit
 
 final class AnalyticsService {
@@ -15,9 +14,12 @@ final class AnalyticsService {
     private init() {}
 
     private let optInKey = "analyticsOptIn"
-    private let distinctIdKeychainKey = "analyticsDistinctId"
+    private let backendAuthFallbackTokenKey = "localBackendAuthFallbackToken"
+    private let backendAuthOverrideTokenKey = "dayflowBackendAuthTokenOverride"
     private let throttleLock = NSLock()
     private var throttles: [String: Date] = [:]
+
+    // MARK: - Opt-in
 
     var isOptedIn: Bool {
         get {
@@ -32,38 +34,34 @@ final class AnalyticsService {
         }
     }
 
-    func start() {
-        // Still initialize local identity so toggles behave deterministically.
-        _ = ensureDistinctId()
-        registerInitialSuperProperties()
-        if !UserDefaults.standard.bool(forKey: "installTsSent") {
-            UserDefaults.standard.set(true, forKey: "installTsSent")
-        }
+    // MARK: - Lifecycle
+
+    func start(apiKey: String, host: String) {
+        // No-op: analytics disabled in this build.
     }
 
-    @discardableResult
-    private func ensureDistinctId() -> String {
-        if let existing = KeychainManager.shared.retrieve(for: distinctIdKeychainKey), !existing.isEmpty {
-            return existing
-        }
-        let newId = UUID().uuidString
-        _ = KeychainManager.shared.store(newId, for: distinctIdKeychainKey)
-        return newId
+    func start() {
+        // No-op: analytics disabled in this build.
+        registerInitialSuperProperties()
     }
 
     func setOptIn(_ enabled: Bool) {
         isOptedIn = enabled
     }
 
+    // MARK: - Event Capture
+
     func capture(_ name: String, _ props: [String: Any] = [:]) {
         guard isOptedIn else { return }
-        // No-op: analytics disabled in this build. Keep hook for future logging if needed.
+        // No-op: analytics disabled in this build.
     }
 
     func screen(_ name: String, _ props: [String: Any] = [:]) {
-        // Implement as a regular capture for consistency
-        capture("screen_viewed", ["screen": name].merging(props, uniquingKeysWith: { _, new in new }))
+        guard isOptedIn else { return }
+        // No-op: analytics disabled in this build.
     }
+
+    // MARK: - Identity
 
     func identify(_ distinctId: String, properties: [String: Any] = [:]) {
         guard isOptedIn else { return }
@@ -76,6 +74,8 @@ final class AnalyticsService {
         guard isOptedIn else { return }
     }
 
+    // MARK: - Properties
+
     func registerSuperProperties(_ props: [String: Any]) {
         guard isOptedIn else { return }
     }
@@ -84,40 +84,7 @@ final class AnalyticsService {
         guard isOptedIn else { return }
     }
 
-    func throttled(_ key: String, minInterval: TimeInterval, action: () -> Void) {
-        let now = Date()
-        throttleLock.lock()
-        defer { throttleLock.unlock() }
-
-        if let last = throttles[key], now.timeIntervalSince(last) < minInterval { return }
-        throttles[key] = now
-        action()
-    }
-
-    func withSampling(probability: Double, action: () -> Void) {
-        guard probability >= 1.0 || Double.random(in: 0..<1) < probability else { return }
-        action()
-    }
-
-    func secondsBucket(_ seconds: Double) -> String {
-        switch seconds {
-        case ..<15: return "0-15s"
-        case ..<60: return "15-60s"
-        case ..<300: return "1-5m"
-        case ..<1200: return "5-20m"
-        default: return ">20m"
-        }
-    }
-
-    func pctBucket(_ value: Double) -> String {
-        let pct = max(0.0, min(1.0, value))
-        switch pct {
-        case ..<0.25: return "0-25%"
-        case ..<0.5: return "25-50%"
-        case ..<0.75: return "50-75%"
-        default: return "75-100%"
-        }
-    }
+    // MARK: - Validation Failure Tracking
 
     /// Track LLM validation failures (time coverage, duration, parse errors)
     func captureValidationFailure(
@@ -133,7 +100,7 @@ final class AnalyticsService {
             "provider": provider,
             "operation": operation,
             "validation_type": validationType,
-            "attempt": attempt
+            "attempt": attempt,
         ]
         if let model = model { props["model"] = model }
         if let batchId = batchId { props["batch_id"] = batchId }
@@ -144,6 +111,66 @@ final class AnalyticsService {
         capture("llm_validation_failed", props)
     }
 
+    // MARK: - Sampling & Throttling
+
+    func withSampling(probability: Double, action: () -> Void) {
+        guard isOptedIn else { return }
+        guard Double.random(in: 0..<1) < probability else { return }
+        action()
+    }
+
+    func throttled(_ key: String, minInterval: TimeInterval, action: () -> Void) {
+        guard isOptedIn else { return }
+        throttleLock.lock()
+        defer { throttleLock.unlock() }
+        let now = Date()
+        if let last = throttles[key], now.timeIntervalSince(last) < minInterval {
+            return
+        }
+        throttles[key] = now
+        action()
+    }
+
+    // MARK: - Backend Auth Token
+
+    func backendAuthToken() -> String {
+        // Check for an explicit override first (set via debug menu / defaults)
+        if let override = UserDefaults.standard.string(forKey: backendAuthOverrideTokenKey),
+           !override.isEmpty {
+            return override
+        }
+        return UserDefaults.standard.string(forKey: backendAuthFallbackTokenKey) ?? ""
+    }
+
+    // MARK: - Bucket Helpers
+
+    func pctBucket(_ value: Double) -> String {
+        let pct = max(0.0, min(1.0, value))
+        switch pct {
+        case ..<0.25: return "0-25%"
+        case ..<0.5: return "25-50%"
+        case ..<0.75: return "50-75%"
+        default: return "75-100%"
+        }
+    }
+
+    func secondsBucket(_ seconds: Double) -> String {
+        let s = max(0, Int(seconds))
+        switch s {
+        case 0..<5: return "0-5s"
+        case 5..<15: return "5-15s"
+        case 15..<30: return "15-30s"
+        case 30..<60: return "30-60s"
+        case 60..<300: return "1-5m"
+        case 300..<900: return "5-15m"
+        case 900..<1800: return "15-30m"
+        case 1800..<3600: return "30-60m"
+        default: return "60m+"
+        }
+    }
+
+    // MARK: - Date Helpers
+
     private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -153,6 +180,8 @@ final class AnalyticsService {
     func dayString(_ date: Date) -> String {
         Self.dayFormatter.string(from: date)
     }
+
+    // MARK: - Private Helpers
 
     private func registerInitialSuperProperties() {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
@@ -170,13 +199,15 @@ final class AnalyticsService {
             "device_model": device,
             "locale": locale,
             "time_zone": tz,
-            // dynamic values will be updated later as needed
         ])
     }
 
     private func sanitize(_ props: [String: Any]) -> [String: Any] {
         // Drop known sensitive keys if ever passed by mistake
-        let blocked = Set(["api_key", "token", "authorization", "file_path", "url", "window_title", "clipboard", "screen_content"]) 
+        let blocked = Set([
+            "api_key", "token", "authorization", "file_path", "url", "window_title", "clipboard",
+            "screen_content",
+        ])
         var out: [String: Any] = [:]
         for (k, v) in props {
             if blocked.contains(k) { continue }
