@@ -60,7 +60,6 @@ final class UpdaterManager: NSObject, ObservableObject {
     } catch {
       print("[Sparkle] updater.start() FAILED: \(error)")
     }
-  }
 
   func checkForUpdates(showUI: Bool = false) {
     isChecking = true
@@ -78,7 +77,6 @@ final class UpdaterManager: NSObject, ObservableObject {
       // Trigger a background check immediately; the scheduler will also keep running
       updater.checkForUpdatesInBackground()
     }
-  }
 }
 
 extension UpdaterManager: SPUUpdaterDelegate {

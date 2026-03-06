@@ -48,7 +48,6 @@ final class KeychainManager {
       let status = SecItemAdd(addQuery as CFDictionary, nil)
       return status == errSecSuccess
     }
-  }
 
   /// Retrieves an API key from the keychain
   /// - Parameter provider: The provider identifier

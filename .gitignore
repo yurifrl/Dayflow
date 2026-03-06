@@ -32,3 +32,4 @@ codexeval/
 .derivedData/
 sec-analysis.md
 TODO.md
+.ant-colony/
