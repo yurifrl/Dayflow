@@ -9,8 +9,7 @@ final class AutoDailyReportService: ObservableObject {
     private let settingsStore: AutoDailyReportSettingsStore
     private let obsidianSettingsStore: ObsidianSettingsStore
 
-    private let checkInterval: TimeInterval = 3600 // 1 hour in seconds
-    private let lastCheckKey = "autoDailyReportLastCheck"
+    private let lastExportDayKey = "autoDailyReportLastExportDay"
 
     init(
         settingsStore: AutoDailyReportSettingsStore = AutoDailyReportSettingsStore(),
@@ -21,67 +20,84 @@ final class AutoDailyReportService: ObservableObject {
     }
 
     func start() {
+        stop()
         guard settingsStore.settings.isEnabled else { return }
-
-        // Check immediately on start
-        checkAndCreateReport()
-
-        // Update next run time
-        updateNextRunTime()
-
-        // Schedule hourly checks
-        timer = Timer.scheduledTimer(withTimeInterval: checkInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.checkAndCreateReport()
-                self?.updateNextRunTime()
-            }
-        }
+        scheduleNextRun()
     }
 
     func stop() {
         timer?.invalidate()
         timer = nil
+        settingsStore.settings.nextRunTime = nil
     }
 
-    private func updateNextRunTime() {
-        let nextRun = Date().addingTimeInterval(checkInterval)
-        settingsStore.settings.nextRunTime = nextRun
+    /// Reschedule after settings change (e.g. time picker updated).
+    func reschedule() {
+        start()
     }
 
-    private func checkAndCreateReport() {
-        guard settingsStore.settings.isEnabled else { return }
-        guard obsidianSettingsStore.settings.isEnabled else { return }
+    // MARK: - Scheduling
 
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
-
-        // Check if we already checked today
-        let lastCheck = UserDefaults.standard.object(forKey: lastCheckKey) as? Date
-        if let lastCheck = lastCheck, Calendar.current.isDateInToday(lastCheck) {
-            return
-        }
-
-        // Check if yesterday's report exists
-        guard let directoryURL = obsidianSettingsStore.settings.accessDirectoryURL() else {
-            return
-        }
-
-        defer { ObsidianExportSettings.stopAccessingSecurityScopedResource(for: directoryURL) }
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let fileName = formatter.string(from: yesterday) + ".md"
-        let fileURL = directoryURL.appendingPathComponent(fileName)
-
-        let fileExists = FileManager.default.fileExists(atPath: fileURL.path)
-
-        if !fileExists {
-            createReport(for: yesterday)
-        }
-
-        // Update last check time
+    private func scheduleNextRun() {
         let now = Date()
-        UserDefaults.standard.set(now, forKey: lastCheckKey)
-        settingsStore.settings.lastRunTime = now
+        let calendar = Calendar.current
+        let settings = settingsStore.settings
+
+        // Build today's scheduled time
+        var components = calendar.dateComponents([.year, .month, .day], from: now)
+        components.hour = settings.scheduledHour
+        components.minute = settings.scheduledMinute
+        components.second = 0
+
+        guard var scheduledTime = calendar.date(from: components) else { return }
+
+        // If today's time already passed and we already exported today, schedule for tomorrow
+        let todayString = dayString(now)
+        let lastExportDay = UserDefaults.standard.string(forKey: lastExportDayKey)
+
+        if scheduledTime <= now {
+            if lastExportDay == todayString {
+                // Already exported today, schedule tomorrow
+                scheduledTime = calendar.date(byAdding: .day, value: 1, to: scheduledTime) ?? scheduledTime
+            }
+            // else: time passed but haven't exported today — run now
+        }
+
+        let delay = max(1, scheduledTime.timeIntervalSince(now))
+        settingsStore.settings.nextRunTime = scheduledTime
+
+        timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.fireExport()
+            }
+        }
+    }
+
+    private func fireExport() {
+        guard settingsStore.settings.isEnabled else { return }
+        guard obsidianSettingsStore.settings.isEnabled else {
+            scheduleNextRun()
+            return
+        }
+
+        let today = dayString(Date())
+        let lastExportDay = UserDefaults.standard.string(forKey: lastExportDayKey)
+
+        if lastExportDay != today {
+            exportYesterday()
+            UserDefaults.standard.set(today, forKey: lastExportDayKey)
+            settingsStore.settings.lastRunTime = Date()
+        }
+
+        // Schedule tomorrow's run
+        scheduleNextRun()
+    }
+
+    // MARK: - Export
+
+    private func exportYesterday() {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+        createReport(for: yesterday)
     }
 
     private func createReport(for date: Date) {
@@ -89,12 +105,10 @@ final class AutoDailyReportService: ObservableObject {
             do {
                 let viewModel = DailyJournalViewModel()
 
-                // Wait for the view model to load the data
                 await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                     DispatchQueue.main.async {
                         viewModel.load(for: date)
 
-                        // Poll until loading completes (with timeout)
                         var attempts = 0
                         Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
                             attempts += 1
@@ -118,15 +132,22 @@ final class AutoDailyReportService: ObservableObject {
                     settings: &settings
                 )
 
-                // Update settings if bookmark was created
                 if settings.directoryBookmark != obsidianSettingsStore.settings.directoryBookmark {
                     obsidianSettingsStore.settings = settings
                 }
 
-                print("Auto-created daily report for \(date): \(fileURL.path)")
+                print("Auto-exported daily report for \(date): \(fileURL.path)")
             } catch {
-                print("Failed to auto-create daily report: \(error)")
+                print("Failed to auto-export daily report: \(error)")
             }
         }
+    }
+
+    // MARK: - Helpers
+
+    private func dayString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 }
