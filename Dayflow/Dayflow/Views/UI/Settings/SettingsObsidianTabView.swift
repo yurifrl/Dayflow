@@ -2,7 +2,7 @@
 //  SettingsObsidianTabView.swift
 //  Dayflow
 //
-//  Obsidian vault export configuration, manual export button, and scheduled auto-export.
+//  Obsidian vault export: folder picker, date-range export, export-now, and scheduled auto-export.
 //
 
 import SwiftUI
@@ -12,27 +12,28 @@ struct SettingsObsidianTabView: View {
     @ObservedObject var obsidianStore: ObsidianSettingsStore
     @ObservedObject var autoReportStore: AutoDailyReportSettingsStore
 
-    @State private var isExporting = false
-    @State private var exportResult: ExportResult?
+    // Date-range export state
+    @State private var exportStartDate: Date = timelineDisplayDate(from: Date())
+    @State private var exportEndDate: Date = timelineDisplayDate(from: Date())
+    @State private var activeExportDatePicker: ExportDatePicker?
+    @State private var isExportingRange = false
+    @State private var rangeExportMessage: String?
+    @State private var rangeExportError: String?
 
-    private enum ExportResult: Identifiable {
-        case success(URL)
-        case error(String)
+    // Export-now state
+    @State private var isExportingNow = false
+    @State private var exportNowMessage: String?
+    @State private var exportNowError: String?
 
-        var id: String {
-            switch self {
-            case .success(let url): return "ok:\(url.path)"
-            case .error(let msg): return "err:\(msg)"
-            }
-        }
+    private enum ExportDatePicker {
+        case start, end
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             vaultFolderCard
-            writePositionCard
-            sectionTitleCard
-            exportCard
+            dateRangeExportCard
+            exportNowCard
             autoExportCard
         }
     }
@@ -44,7 +45,7 @@ struct SettingsObsidianTabView: View {
             VStack(alignment: .leading, spacing: 14) {
                 cardHeader(icon: "folder", title: "Vault Folder")
 
-                Text("Choose the Obsidian vault folder where daily notes will be saved as markdown files (e.g. 2026-03-06.md).")
+                Text("Choose the Obsidian vault folder where exports are saved.")
                     .font(.custom("Nunito", size: 13))
                     .foregroundColor(.black.opacity(0.5))
                     .fixedSize(horizontal: false, vertical: true)
@@ -80,116 +81,136 @@ struct SettingsObsidianTabView: View {
         }
     }
 
-    // MARK: - Write Position
+    // MARK: - Date Range Export
 
-    private var writePositionCard: some View {
+    private var dateRangeExportCard: some View {
         settingsCard {
-            VStack(alignment: .leading, spacing: 14) {
-                cardHeader(icon: "text.insert", title: "Write Position")
+            let rangeInvalid = timelineDisplayDate(from: exportStartDate) > timelineDisplayDate(from: exportEndDate)
 
-                Text("Where to insert the Dayflow section when the daily note already exists.")
+            VStack(alignment: .leading, spacing: 14) {
+                cardHeader(icon: "square.and.arrow.up", title: "Export to Vault")
+
+                Text("Export a date range from your timeline to the vault folder.")
                     .font(.custom("Nunito", size: 13))
                     .foregroundColor(.black.opacity(0.5))
                     .fixedSize(horizontal: false, vertical: true)
 
-                Picker("", selection: $obsidianStore.settings.writePosition) {
-                    ForEach(ObsidianWritePosition.allCases) { position in
-                        Text(position.label).tag(position)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                // Date pickers
+                HStack(alignment: .bottom, spacing: 12) {
+                    datePillField(
+                        label: "From",
+                        date: exportStartDate,
+                        isExpanded: activeExportDatePicker == .start,
+                        onTap: {
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+                                activeExportDatePicker = activeExportDatePicker == .start ? nil : .start
+                            }
+                        }
+                    )
 
-                if obsidianStore.settings.writePosition.requiresAnchor {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Anchor text")
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.35))
+                        .padding(.bottom, 12)
+
+                    datePillField(
+                        label: "To",
+                        date: exportEndDate,
+                        isExpanded: activeExportDatePicker == .end,
+                        onTap: {
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+                                activeExportDatePicker = activeExportDatePicker == .end ? nil : .end
+                            }
+                        }
+                    )
+                }
+
+                if let picker = activeExportDatePicker {
+                    inlineCalendarField(
+                        date: exportDateBinding(for: picker),
+                        onDateSelected: {
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+                                activeExportDatePicker = nil
+                            }
+                        }
+                    )
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // File preview
+                if !obsidianStore.settings.directoryPath.isEmpty {
+                    let fileName = exportFileName(from: exportStartDate, to: exportEndDate)
+                    HStack(spacing: 6) {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 11))
+                            .foregroundColor(.black.opacity(0.35))
+                        Text(fileName)
                             .font(.custom("Nunito", size: 12))
-                            .foregroundColor(.black.opacity(0.5))
-
-                        TextField("e.g. ## Daily Log", text: $obsidianStore.settings.anchorText)
-                            .textFieldStyle(.plain)
-                            .font(.custom("Nunito", size: 13))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(fieldBackground)
+                            .foregroundColor(.black.opacity(0.45))
+                            .italic()
                     }
                 }
+
+                HStack(spacing: 10) {
+                    actionButton(
+                        label: "Export as Markdown",
+                        icon: "square.and.arrow.down",
+                        isLoading: isExportingRange,
+                        disabled: !canExport || rangeInvalid
+                    ) {
+                        exportRange()
+                    }
+
+                    if rangeInvalid {
+                        Text("Start date must be on or before end date.")
+                            .font(.custom("Nunito", size: 12))
+                            .foregroundColor(Color(hex: "E91515"))
+                    }
+                }
+
+                statusMessages(success: rangeExportMessage, error: rangeExportError)
             }
         }
     }
 
-    // MARK: - Section Title
+    // MARK: - Export Now
 
-    private var sectionTitleCard: some View {
+    private var exportNowCard: some View {
         settingsCard {
             VStack(alignment: .leading, spacing: 14) {
-                cardHeader(icon: "textformat", title: "Section Title")
+                cardHeader(icon: "arrow.clockwise", title: "Export Now")
 
-                TextField(ObsidianExportSettings.defaultTitle, text: $obsidianStore.settings.title)
-                    .textFieldStyle(.plain)
-                    .font(.custom("Nunito", size: 13))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(fieldBackground)
-            }
-        }
-    }
-
-    // MARK: - Export (manual)
-
-    private var exportCard: some View {
-        settingsCard {
-            VStack(alignment: .leading, spacing: 14) {
-                cardHeader(icon: "square.and.arrow.up", title: "Export")
-
-                Text("Export yesterday's journal to your vault now.")
+                Text("Export from the last exported date to today. If nothing was exported before, exports today.")
                     .font(.custom("Nunito", size: 13))
                     .foregroundColor(.black.opacity(0.5))
+                    .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 12) {
-                    Button {
-                        exportNow()
-                    } label: {
-                        HStack(spacing: 6) {
-                            if isExporting {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "arrow.up.doc")
-                                    .font(.system(size: 12, weight: .medium))
-                            }
-                            Text(isExporting ? "Exporting…" : "Export Now")
-                                .font(.custom("Nunito", size: 13))
-                                .fontWeight(.semibold)
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(canExport
-                                    ? Color(red: 0.45, green: 0.26, blue: 0.04)
-                                    : Color.black.opacity(0.15))
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .disabled(!canExport || isExporting)
-                    .pointingHandCursor()
-
-                    if let result = exportResult {
-                        resultBadge(result)
+                if let lastRun = autoReportStore.settings.lastRunTime {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 11))
+                            .foregroundColor(.black.opacity(0.35))
+                        Text("Last export: \(lastRun.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.custom("Nunito", size: 12))
+                            .foregroundColor(.black.opacity(0.45))
                     }
                 }
 
-                if !canExport {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(.orange)
-                        Text("Choose a vault folder first.")
-                            .font(.custom("Nunito", size: 12))
-                            .foregroundColor(.orange.opacity(0.8))
+                HStack(spacing: 10) {
+                    actionButton(
+                        label: "Export Now",
+                        icon: "arrow.up.doc",
+                        isLoading: isExportingNow,
+                        disabled: !canExport
+                    ) {
+                        exportNow()
                     }
+                }
+
+                statusMessages(success: exportNowMessage, error: exportNowError)
+
+                if !canExport {
+                    warningLabel("Choose a vault folder first.")
                 }
             }
         }
@@ -227,14 +248,13 @@ struct SettingsObsidianTabView: View {
                     .labelsHidden()
                 }
 
-                Text("Automatically export yesterday's journal at a set time each day.")
+                Text("Automatically export yesterday's timeline at a set time each day.")
                     .font(.custom("Nunito", size: 13))
                     .foregroundColor(.black.opacity(0.5))
                     .fixedSize(horizontal: false, vertical: true)
 
                 if autoReportStore.settings.isEnabled {
                     VStack(alignment: .leading, spacing: 12) {
-                        // Time picker
                         HStack(spacing: 10) {
                             Text("Export at")
                                 .font(.custom("Nunito", size: 13))
@@ -259,7 +279,6 @@ struct SettingsObsidianTabView: View {
                                 .foregroundColor(.black.opacity(0.6))
                         }
 
-                        // Status
                         VStack(alignment: .leading, spacing: 4) {
                             if let lastRun = autoReportStore.settings.lastRunTime {
                                 HStack(spacing: 4) {
@@ -284,14 +303,7 @@ struct SettingsObsidianTabView: View {
                         }
 
                         if obsidianStore.settings.directoryPath.isEmpty {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.orange)
-                                Text("Choose a vault folder above to enable auto export.")
-                                    .font(.custom("Nunito", size: 12))
-                                    .foregroundColor(.orange.opacity(0.8))
-                            }
+                            warningLabel("Choose a vault folder above to enable auto export.")
                         }
                     }
                 }
@@ -331,65 +343,129 @@ struct SettingsObsidianTabView: View {
         obsidianStore.settings.isEnabled = true
     }
 
-    private func exportNow() {
-        isExporting = true
-        exportResult = nil
+    private func exportRange() {
+        guard !isExportingRange else { return }
+        isExportingRange = true
+        rangeExportMessage = nil
+        rangeExportError = nil
 
-        Task {
-            do {
-                let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
-                let viewModel = DailyJournalViewModel()
+        let start = timelineDisplayDate(from: exportStartDate)
+        let end = timelineDisplayDate(from: exportEndDate)
 
-                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                    DispatchQueue.main.async {
-                        viewModel.load(for: yesterday)
-                        var attempts = 0
-                        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-                            attempts += 1
-                            if !viewModel.isLoading || attempts > 100 {
-                                timer.invalidate()
-                                continuation.resume()
-                            }
-                        }
-                    }
+        Task.detached(priority: .userInitiated) {
+            let result = Self.buildMarkdownExport(from: start, to: end)
+
+            await MainActor.run {
+                do {
+                    let url = try writeToVault(
+                        text: result.text,
+                        startDate: start,
+                        endDate: end
+                    )
+                    rangeExportMessage = "Saved \(result.activityCount) activit\(result.activityCount == 1 ? "y" : "ies") across \(result.dayCount) day\(result.dayCount == 1 ? "" : "s") → \(url.lastPathComponent)"
+                    rangeExportError = nil
+                } catch {
+                    rangeExportMessage = nil
+                    rangeExportError = error.localizedDescription
                 }
-
-                let markdown = viewModel.markdown
-                guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                    isExporting = false
-                    exportResult = .error("No journal data for yesterday.")
-                    return
-                }
-
-                var settings = obsidianStore.settings
-                let fileURL = try ObsidianExporter.export(
-                    journalMarkdown: markdown,
-                    for: yesterday,
-                    settings: &settings
-                )
-
-                if settings.directoryBookmark != obsidianStore.settings.directoryBookmark {
-                    obsidianStore.settings = settings
-                }
-
-                isExporting = false
-                exportResult = .success(fileURL)
-            } catch {
-                isExporting = false
-                exportResult = .error(error.localizedDescription)
+                isExportingRange = false
             }
         }
     }
 
-    // MARK: - UI Helpers
+    private func exportNow() {
+        guard !isExportingNow else { return }
+        isExportingNow = true
+        exportNowMessage = nil
+        exportNowError = nil
 
-    private func abbreviatedPath(_ path: String) -> String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        if path.hasPrefix(home) {
-            return "~" + path.dropFirst(home.count)
+        // From last export date (or today if never exported)
+        let today = timelineDisplayDate(from: Date())
+        let startDate: Date
+        if let lastRun = autoReportStore.settings.lastRunTime {
+            startDate = timelineDisplayDate(from: lastRun)
+        } else {
+            startDate = today
         }
-        return path
+
+        Task.detached(priority: .userInitiated) {
+            let result = Self.buildMarkdownExport(from: startDate, to: today)
+
+            await MainActor.run {
+                do {
+                    let url = try writeToVault(
+                        text: result.text,
+                        startDate: startDate,
+                        endDate: today
+                    )
+                    autoReportStore.settings.lastRunTime = Date()
+                    exportNowMessage = "Saved \(result.activityCount) activit\(result.activityCount == 1 ? "y" : "ies") across \(result.dayCount) day\(result.dayCount == 1 ? "" : "s") → \(url.lastPathComponent)"
+                    exportNowError = nil
+                } catch {
+                    exportNowMessage = nil
+                    exportNowError = error.localizedDescription
+                }
+                isExportingNow = false
+            }
+        }
     }
+
+    // MARK: - Export Logic
+
+    private struct ExportResult {
+        let text: String
+        let dayCount: Int
+        let activityCount: Int
+    }
+
+    private static func buildMarkdownExport(from start: Date, to end: Date) -> ExportResult {
+        let calendar = Calendar.current
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+
+        var cursor = start
+        var sections: [String] = []
+        var totalActivities = 0
+        var dayCount = 0
+
+        while cursor <= end {
+            let dayString = dayFormatter.string(from: cursor)
+            let cards = StorageManager.shared.fetchTimelineCards(forDay: dayString)
+            totalActivities += cards.count
+            let section = TimelineClipboardFormatter.makeMarkdown(for: cursor, cards: cards)
+            sections.append(section)
+            dayCount += 1
+
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+
+        let text = sections.joined(separator: "\n\n---\n\n")
+        return ExportResult(text: text, dayCount: dayCount, activityCount: totalActivities)
+    }
+
+    @MainActor
+    private func writeToVault(text: String, startDate: Date, endDate: Date) throws -> URL {
+        guard let directoryURL = obsidianStore.settings.accessDirectoryURL() else {
+            throw NSError(domain: "ObsidianExport", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "Could not access vault folder."])
+        }
+        defer { ObsidianExportSettings.stopAccessingSecurityScopedResource(for: directoryURL) }
+
+        let fileName = exportFileName(from: startDate, to: endDate)
+        let fileURL = directoryURL.appendingPathComponent(fileName)
+
+        try text.write(to: fileURL, atomically: true, encoding: .utf8)
+        return fileURL
+    }
+
+    private func exportFileName(from start: Date, to end: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        return "Dayflow timeline \(fmt.string(from: timelineDisplayDate(from: start))) to \(fmt.string(from: timelineDisplayDate(from: end))).md"
+    }
+
+    // MARK: - Shared UI Components
 
     private func cardHeader(icon: String, title: String) -> some View {
         HStack(spacing: 8) {
@@ -433,28 +509,123 @@ struct SettingsObsidianTabView: View {
         .pointingHandCursor()
     }
 
+    private func actionButton(label: String, icon: String, isLoading: Bool, disabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if isLoading {
+                    ProgressView().scaleEffect(0.75)
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                Text(isLoading ? "Exporting…" : label)
+                    .font(.custom("Nunito", size: 13))
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(.white)
+            .frame(minWidth: 150)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(disabled
+                        ? Color.black.opacity(0.15)
+                        : Color(red: 0.25, green: 0.17, blue: 0))
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(disabled || isLoading)
+        .pointingHandCursor()
+    }
+
     @ViewBuilder
-    private func resultBadge(_ result: ExportResult) -> some View {
-        switch result {
-        case .success(let url):
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.green)
-                Text(url.lastPathComponent)
-                    .font(.custom("Nunito", size: 12))
-                    .foregroundColor(.black.opacity(0.6))
+    private func statusMessages(success: String?, error: String?) -> some View {
+        if let msg = success {
+            Text(msg)
+                .font(.custom("Nunito", size: 12))
+                .foregroundColor(Color(red: 0.1, green: 0.5, blue: 0.22))
+        }
+        if let err = error {
+            Text(err)
+                .font(.custom("Nunito", size: 12))
+                .foregroundColor(Color(hex: "E91515"))
+        }
+    }
+
+    private func warningLabel(_ text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+                .foregroundColor(.orange)
+            Text(text)
+                .font(.custom("Nunito", size: 12))
+                .foregroundColor(.orange.opacity(0.8))
+        }
+    }
+
+    // MARK: - Date Picker Components (matching Export tab style)
+
+    private func datePillField(label: String, date: Date, isExpanded: Bool, onTap: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(label)
+                .font(.custom("Nunito", size: 11.5))
+                .foregroundColor(.black.opacity(0.52))
+
+            Button(action: onTap) {
+                HStack(spacing: 10) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(red: 0.25, green: 0.17, blue: 0).opacity(0.75))
+
+                    Text(Self.dateLabelFormatter.string(from: timelineDisplayDate(from: date)))
+                        .font(.custom("Nunito", size: 14))
+                        .foregroundColor(.black.opacity(0.82))
+
+                    Spacer(minLength: 4)
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.35))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .frame(minWidth: 176)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.88))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(isExpanded ? Color(hex: "F9C36B") : Color(hex: "FFE0A5"), lineWidth: 1.2)
+                        )
+                )
+                .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
             }
-        case .error(let msg):
-            HStack(spacing: 4) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.red)
-                Text(msg)
-                    .font(.custom("Nunito", size: 12))
-                    .foregroundColor(.red.opacity(0.8))
-                    .lineLimit(2)
-            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func inlineCalendarField(date: Binding<Date>, onDateSelected: @escaping () -> Void) -> some View {
+        DatePicker("", selection: date, displayedComponents: .date)
+            .datePickerStyle(.graphical)
+            .labelsHidden()
+            .onChange(of: date.wrappedValue) { _, _ in onDateSelected() }
+            .frame(maxWidth: 290, alignment: .leading)
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white.opacity(0.82))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(hex: "FFE0A5"), lineWidth: 1.2)
+                    )
+            )
+            .shadow(color: .black.opacity(0.04), radius: 7, x: 0, y: 2)
+    }
+
+    private func exportDateBinding(for picker: ExportDatePicker) -> Binding<Date> {
+        switch picker {
+        case .start: return $exportStartDate
+        case .end: return $exportEndDate
         }
     }
 
@@ -471,5 +642,19 @@ struct SettingsObsidianTabView: View {
                             .stroke(Color.black.opacity(0.06), lineWidth: 1)
                     )
             )
+    }
+
+    private static let dateLabelFormatter: DateFormatter = {
+        let fmt = DateFormatter()
+        fmt.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
+        return fmt
+    }()
+
+    private func abbreviatedPath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
     }
 }

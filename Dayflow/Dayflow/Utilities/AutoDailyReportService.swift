@@ -43,7 +43,6 @@ final class AutoDailyReportService: ObservableObject {
         let calendar = Calendar.current
         let settings = settingsStore.settings
 
-        // Build today's scheduled time
         var components = calendar.dateComponents([.year, .month, .day], from: now)
         components.hour = settings.scheduledHour
         components.minute = settings.scheduledMinute
@@ -51,16 +50,13 @@ final class AutoDailyReportService: ObservableObject {
 
         guard var scheduledTime = calendar.date(from: components) else { return }
 
-        // If today's time already passed and we already exported today, schedule for tomorrow
         let todayString = dayString(now)
         let lastExportDay = UserDefaults.standard.string(forKey: lastExportDayKey)
 
         if scheduledTime <= now {
             if lastExportDay == todayString {
-                // Already exported today, schedule tomorrow
                 scheduledTime = calendar.date(byAdding: .day, value: 1, to: scheduledTime) ?? scheduledTime
             }
-            // else: time passed but haven't exported today — run now
         }
 
         let delay = max(1, scheduledTime.timeIntervalSince(now))
@@ -89,7 +85,6 @@ final class AutoDailyReportService: ObservableObject {
             settingsStore.settings.lastRunTime = Date()
         }
 
-        // Schedule tomorrow's run
         scheduleNextRun()
     }
 
@@ -97,48 +92,39 @@ final class AutoDailyReportService: ObservableObject {
 
     private func exportYesterday() {
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
-        createReport(for: yesterday)
-    }
+        let normalizedDate = timelineDisplayDate(from: yesterday)
+        let dayStr = dayString(normalizedDate)
 
-    private func createReport(for date: Date) {
-        Task {
-            do {
-                let viewModel = DailyJournalViewModel()
+        Task.detached(priority: .userInitiated) {
+            let dayString = dayStr
+            let cards = StorageManager.shared.fetchTimelineCards(forDay: dayString)
 
-                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                    DispatchQueue.main.async {
-                        viewModel.load(for: date)
+            guard !cards.isEmpty else {
+                print("[AutoExport] No cards for \(dayString), skipping.")
+                return
+            }
 
-                        var attempts = 0
-                        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-                            attempts += 1
-                            if !viewModel.isLoading || attempts > 100 {
-                                timer.invalidate()
-                                continuation.resume()
-                            }
-                        }
-                    }
-                }
+            let markdown = TimelineClipboardFormatter.makeMarkdown(for: normalizedDate, cards: cards)
 
-                let markdown = viewModel.markdown
-                guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            await MainActor.run {
+                guard let directoryURL = self.obsidianSettingsStore.settings.accessDirectoryURL() else {
+                    print("[AutoExport] Could not access vault folder.")
                     return
                 }
+                defer { ObsidianExportSettings.stopAccessingSecurityScopedResource(for: directoryURL) }
 
-                var settings = obsidianSettingsStore.settings
-                let fileURL = try ObsidianExporter.export(
-                    journalMarkdown: markdown,
-                    for: date,
-                    settings: &settings
-                )
+                let fmt = DateFormatter()
+                fmt.dateFormat = "yyyy-MM-dd"
+                let dateStr = fmt.string(from: normalizedDate)
+                let fileName = "Dayflow timeline \(dateStr) to \(dateStr).md"
+                let fileURL = directoryURL.appendingPathComponent(fileName)
 
-                if settings.directoryBookmark != obsidianSettingsStore.settings.directoryBookmark {
-                    obsidianSettingsStore.settings = settings
+                do {
+                    try markdown.write(to: fileURL, atomically: true, encoding: .utf8)
+                    print("[AutoExport] Saved \(fileURL.lastPathComponent)")
+                } catch {
+                    print("[AutoExport] Failed to write: \(error)")
                 }
-
-                print("Auto-exported daily report for \(date): \(fileURL.path)")
-            } catch {
-                print("Failed to auto-export daily report: \(error)")
             }
         }
     }
