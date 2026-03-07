@@ -20,10 +20,6 @@ struct SettingsObsidianTabView: View {
     @State private var rangeExportMessage: String?
     @State private var rangeExportError: String?
 
-    // Export-now state
-    @State private var isExportingNow = false
-    @State private var exportNowMessage: String?
-    @State private var exportNowError: String?
 
     private enum ExportDatePicker {
         case start, end
@@ -33,7 +29,6 @@ struct SettingsObsidianTabView: View {
         VStack(alignment: .leading, spacing: 24) {
             vaultFolderCard
             dateRangeExportCard
-            exportNowCard
             autoExportCard
         }
     }
@@ -169,49 +164,6 @@ struct SettingsObsidianTabView: View {
                 }
 
                 statusMessages(success: rangeExportMessage, error: rangeExportError)
-            }
-        }
-    }
-
-    // MARK: - Export Now
-
-    private var exportNowCard: some View {
-        settingsCard {
-            VStack(alignment: .leading, spacing: 14) {
-                cardHeader(icon: "arrow.clockwise", title: "Export Now")
-
-                Text("Export from the last exported date to today. If nothing was exported before, exports today.")
-                    .font(.custom("Nunito", size: 13))
-                    .foregroundColor(.black.opacity(0.5))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let lastRun = autoReportStore.settings.lastRunTime {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 11))
-                            .foregroundColor(.black.opacity(0.35))
-                        Text("Last export: \(lastRun.formatted(date: .abbreviated, time: .shortened))")
-                            .font(.custom("Nunito", size: 12))
-                            .foregroundColor(.black.opacity(0.45))
-                    }
-                }
-
-                HStack(spacing: 10) {
-                    actionButton(
-                        label: "Export Now",
-                        icon: "arrow.up.doc",
-                        isLoading: isExportingNow,
-                        disabled: !canExport
-                    ) {
-                        exportNow()
-                    }
-                }
-
-                statusMessages(success: exportNowMessage, error: exportNowError)
-
-                if !canExport {
-                    warningLabel("Choose a vault folder first.")
-                }
             }
         }
     }
@@ -369,43 +321,6 @@ struct SettingsObsidianTabView: View {
                     rangeExportError = error.localizedDescription
                 }
                 isExportingRange = false
-            }
-        }
-    }
-
-    private func exportNow() {
-        guard !isExportingNow else { return }
-        isExportingNow = true
-        exportNowMessage = nil
-        exportNowError = nil
-
-        // From last export date (or today if never exported)
-        let today = timelineDisplayDate(from: Date())
-        let startDate: Date
-        if let lastRun = autoReportStore.settings.lastRunTime {
-            startDate = timelineDisplayDate(from: lastRun)
-        } else {
-            startDate = today
-        }
-
-        Task.detached(priority: .userInitiated) {
-            let result = Self.buildMarkdownExport(from: startDate, to: today)
-
-            await MainActor.run {
-                do {
-                    let url = try writeToVault(
-                        text: result.text,
-                        startDate: startDate,
-                        endDate: today
-                    )
-                    autoReportStore.settings.lastRunTime = Date()
-                    exportNowMessage = "Saved \(result.activityCount) activit\(result.activityCount == 1 ? "y" : "ies") across \(result.dayCount) day\(result.dayCount == 1 ? "" : "s") → \(url.lastPathComponent)"
-                    exportNowError = nil
-                } catch {
-                    exportNowMessage = nil
-                    exportNowError = error.localizedDescription
-                }
-                isExportingNow = false
             }
         }
     }
