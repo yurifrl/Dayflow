@@ -53,8 +53,8 @@ struct SettingsView: View {
   @StateObject private var storageViewModel = StorageSettingsViewModel()
   @StateObject private var providersViewModel = ProvidersSettingsViewModel()
   @StateObject private var otherViewModel = OtherSettingsViewModel()
-  @StateObject private var obsidianStore = ObsidianSettingsStore()
-  @StateObject private var autoReportStore = AutoDailyReportSettingsStore()
+  @EnvironmentObject var obsidianStore: ObsidianSettingsStore
+  @EnvironmentObject var autoReportStore: AutoDailyReportSettingsStore
 
   var body: some View {
     contentWithSheets
