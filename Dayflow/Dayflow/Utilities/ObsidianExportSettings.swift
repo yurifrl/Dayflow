@@ -109,6 +109,13 @@ final class ObsidianSettingsStore: ObservableObject {
         }
     }
 
+    func reload() {
+        if let data = userDefaults.data(forKey: defaultsKey),
+           let decoded = try? decoder.decode(ObsidianExportSettings.self, from: data) {
+            self.settings = decoded.normalized()
+        }
+    }
+
     private func persist(_ normalized: ObsidianExportSettings) {
         guard let data = try? encoder.encode(normalized) else { return }
         userDefaults.set(data, forKey: defaultsKey)

@@ -53,6 +53,13 @@ final class AutoDailyReportSettingsStore: ObservableObject {
         }
     }
 
+    func reload() {
+        if let data = userDefaults.data(forKey: defaultsKey),
+           let decoded = try? decoder.decode(AutoDailyReportSettings.self, from: data) {
+            self.settings = decoded.normalized()
+        }
+    }
+
     private func persist(_ settings: AutoDailyReportSettings) {
         guard let data = try? encoder.encode(settings) else { return }
         userDefaults.set(data, forKey: defaultsKey)
