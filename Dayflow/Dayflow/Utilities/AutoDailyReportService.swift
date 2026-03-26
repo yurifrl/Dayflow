@@ -19,16 +19,26 @@ final class AutoDailyReportService: ObservableObject {
         self.obsidianSettingsStore = obsidianSettingsStore
     }
 
+    /// Re-read settings from UserDefaults so the service picks up changes made by the UI.
+    func reloadSettings() {
+        settingsStore.reload()
+        obsidianSettingsStore.reload()
+    }
+
     func start() {
-        stop()
+        reloadSettings()
+        stopTimer()
         guard settingsStore.settings.isEnabled else { return }
         scheduleNextRun()
     }
 
     func stop() {
+        stopTimer()
+    }
+
+    private func stopTimer() {
         timer?.invalidate()
         timer = nil
-        settingsStore.settings.nextRunTime = nil
     }
 
     /// Reschedule after settings change (e.g. time picker updated).
@@ -70,6 +80,7 @@ final class AutoDailyReportService: ObservableObject {
     }
 
     private func fireExport() {
+        reloadSettings()
         guard settingsStore.settings.isEnabled else { return }
         guard obsidianSettingsStore.settings.isEnabled else {
             scheduleNextRun()
