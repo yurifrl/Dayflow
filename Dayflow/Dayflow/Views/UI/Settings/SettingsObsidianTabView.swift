@@ -523,12 +523,13 @@ struct SettingsObsidianTabView: View {
         DatePicker("", selection: date, displayedComponents: .date)
             .datePickerStyle(.graphical)
             .labelsHidden()
+            .tint(Color(hex: "F96E00"))
             .onChange(of: date.wrappedValue) { _, _ in onDateSelected() }
             .frame(maxWidth: 290, alignment: .leading)
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.82))
+                    .fill(Color.white)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(Color(hex: "FFE0A5"), lineWidth: 1.2)
