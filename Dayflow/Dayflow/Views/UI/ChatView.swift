@@ -30,7 +30,7 @@ struct ChatView: View {
   @Namespace private var bottomID
   @AppStorage("dashboardChatProvider") private var selectedProviderRaw: String = "gemini"
   @AppStorage("chatCLIPreferredTool") private var chatCLIPreferredTool: String = "codex"
-  @AppStorage("hasChatBetaAccepted") private var hasBetaAccepted: Bool = false
+  @AppStorage("hasChatBetaAccepted") private var hasBetaAccepted: Bool = true
   @State private var geminiConfigured = false
   @State private var codexDetected = false
   @State private var claudeDetected = false

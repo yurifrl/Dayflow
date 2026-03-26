@@ -26,6 +26,8 @@ protocol LLMServicing {
     /// Rich chat streaming with thinking, tool calls, and text events (ChatCLI only)
     /// - Parameter sessionId: Optional session ID to resume a previous conversation
     func generateChatStreaming(prompt: String, sessionId: String?) -> AsyncThrowingStream<ChatStreamEvent, Error>
+    /// Full dashboard chat: routes Gemini to its history+tools path, CLI to its session path.
+    func generateDashboardChatStreaming(_ request: DashboardChatRequest) -> AsyncThrowingStream<ChatStreamEvent, Error>
     var batchingConfig: BatchingConfig { get }
 }
 
@@ -421,6 +423,13 @@ final class LLMService: LLMServicing {
 
     private func makeErrorStream(_ error: Error) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
+            continuation.finish(throwing: error)
+        }
+    }
+
+    private func makeChatEventErrorStream(_ error: Error) -> AsyncThrowingStream<ChatStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.yield(.error(error.localizedDescription))
             continuation.finish(throwing: error)
         }
     }
@@ -952,6 +961,29 @@ final class LLMService: LLMServicing {
                     continuation.finish(throwing: error)
                 }
             }
+        }
+    }
+
+    // MARK: - Dashboard Chat (all providers)
+
+    func generateDashboardChatStreaming(_ request: DashboardChatRequest) -> AsyncThrowingStream<ChatStreamEvent, Error> {
+        switch request.provider {
+        case .gemini:
+            guard let provider = makeGeminiProvider() else {
+                return makeChatEventErrorStream(noProviderError())
+            }
+            let systemInstruction = request.systemInstruction ?? ""
+            let history = request.history
+            return provider.generateDashboardChatStreaming(
+                systemInstruction: systemInstruction,
+                history: history
+            )
+        case .codex:
+            let chatCLI = makeChatCLIProvider(preferredToolOverride: .codex)
+            return chatCLI.generateChatStreaming(prompt: request.prompt, sessionId: request.sessionId)
+        case .claude:
+            let chatCLI = makeChatCLIProvider(preferredToolOverride: .claude)
+            return chatCLI.generateChatStreaming(prompt: request.prompt, sessionId: request.sessionId)
         }
     }
 }
