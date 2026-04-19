@@ -81,7 +81,7 @@ jobs:
           claude -p \
             --permission-mode bypassPermissions \
             --allowedTools "Bash(git *)" \
-            --max-turns 30 \
+            --max-turns 100 \
             "You are resolving a git rebase. You are on branch ${{ steps.check.outputs.sync_branch }}, rebase was aborted.
 
           Steps:
