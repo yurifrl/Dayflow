@@ -96,7 +96,7 @@ jobs:
         if: steps.check.outputs.synced == 'false'
         run: |
           SYNC_BRANCH="${{ steps.check.outputs.sync_branch }}"
-          git push origin "$SYNC_BRANCH" --force-with-lease
+          git push origin "$SYNC_BRANCH"
 
       - name: Open or update PR
         if: steps.check.outputs.synced == 'false'
