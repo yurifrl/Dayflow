@@ -59,25 +59,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // App opened (cold start)
     AnalyticsService.shared.capture("app_opened", ["cold_start": true])
 
-    // Start heartbeat for DAU tracking
-    appLaunchDate = Date()
-    startHeartbeat()
-    screenshotShortcutTracker.start()
-    updateCPUMonitoring(analyticsEnabled: AnalyticsService.shared.isOptedIn)
-
-    // App updated check
-    let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
-    let lastBuild = UserDefaults.standard.string(forKey: "lastRunBuild")
-    if let last = lastBuild, last != build {
-      let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-      AnalyticsService.shared.capture(
-        "app_updated", ["from_version": last, "to_version": "\(version) (\(build))"])
-    }
-    UserDefaults.standard.set(build, forKey: "lastRunBuild")
-    statusBar = StatusBarController()
-    LaunchAtLoginManager.shared.bootstrapDefaultPreference()
-    deepLinkRouter = AppDeepLinkRouter()
-
     // Check if we've passed the screen recording permission step
     let onboardingStep = OnboardingStepMigration.migrateIfNeeded()
     let didOnboard = UserDefaults.standard.bool(forKey: "didOnboard")
@@ -237,12 +218,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         "analysis_job_started",
         [
           "provider": {
-            switch LLMProviderType.load() {
-            case .geminiDirect: return "gemini"
-            case .dayflowBackend: return "dayflow"
-            case .ollamaLocal: return "ollama"
-            case .chatGPTClaude: return "chat_cli"
+            if let data = UserDefaults.standard.data(forKey: "llmProviderType"),
+               let providerType = try? JSONDecoder().decode(LLMProviderType.self, from: data) {
+              switch providerType {
+              case .geminiDirect: return "gemini"
+              case .ollamaLocal: return "ollama"
+              case .chatGPTClaude: return "chat_cli"
+              }
             }
+            return "unknown"
           }()
         ])
     }
@@ -253,9 +237,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       pendingDeepLinkURLs.append(contentsOf: urls)
       return
     }
-
     for url in urls {
-      _ = deepLinkRouter?.handle(url)
+      _ = deepLinkRouter!.handle(url)
     }
   }
 

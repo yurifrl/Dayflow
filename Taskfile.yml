@@ -1,0 +1,78 @@
+version: '3'
+
+vars:
+  SCHEME: Dayflow
+  CONFIG: Release
+  DERIVED_DATA: '{{.ROOT_DIR}}/.derivedData'
+  PROJECT: '{{.ROOT_DIR}}/Dayflow/Dayflow.xcodeproj'
+
+tasks:
+  install:
+    desc: Build Dayflow, replace the existing /Applications bundle, and launch it.
+    deps:
+      - tag-version
+    env:
+      MODULE_CACHE_DIR: '{{.DERIVED_DATA}}/ModuleCache.noindex'
+      SWIFTPM_CUSTOM_CACHE_PATH: '{{.DERIVED_DATA}}/SwiftPMCache'
+    vars:
+      PRODUCT_NAME: '{{default "Dayflow.app" .PRODUCT_NAME}}'
+      APP_PATH: '{{printf "%s/Build/Products/%s/%s" .DERIVED_DATA .CONFIG .PRODUCT_NAME}}'
+      RESOLVED_INSTALL_PATH: '{{if .INSTALL_PATH}}{{.INSTALL_PATH}}{{else}}{{printf "/Applications/%s" .PRODUCT_NAME}}{{end}}'
+    cmds:
+      - echo "Building {{.SCHEME}} ({{.CONFIG}})…"
+      - mkdir -p "{{.DERIVED_DATA}}/ModuleCache.noindex" "{{.DERIVED_DATA}}/SwiftPMCache" "{{.DERIVED_DATA}}/SourcePackages"
+      - xcodebuild -project "{{.PROJECT}}" -scheme "{{.SCHEME}}" -configuration "{{.CONFIG}}" -derivedDataPath "{{.DERIVED_DATA}}" -clonedSourcePackagesDirPath "{{.DERIVED_DATA}}/SourcePackages" build
+      - |
+        if [ ! -d "{{.APP_PATH}}" ]; then
+          echo "Build succeeded but {{.APP_PATH}} not found" >&2
+          exit 1
+        fi
+      - |
+        if [ -d "{{.RESOLVED_INSTALL_PATH}}" ]; then
+          echo "Removing existing install at {{.RESOLVED_INSTALL_PATH}}…"
+          rm -rf "{{.RESOLVED_INSTALL_PATH}}"
+        fi
+      - echo "Installing Dayflow to {{.RESOLVED_INSTALL_PATH}}…"
+      - ditto "{{.APP_PATH}}" "{{.RESOLVED_INSTALL_PATH}}"
+      - echo "Opening Dayflow…"
+      - open "{{.RESOLVED_INSTALL_PATH}}"
+
+  tag-version:
+    desc: Append a personal suffix to CFBundleShortVersionString (e.g. 1.0.32-y1).
+    vars:
+      INITIAL: '{{default "y" .INITIAL}}'
+    cmds:
+      - |
+        VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Dayflow/Dayflow/Info.plist)
+        SUFFIX="{{.INITIAL}}1"
+        TAGGED="${VERSION}-${SUFFIX}"
+        /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionStringTag string ${TAGGED}" Dayflow/Dayflow/Info.plist 2>/dev/null || \
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionStringTag ${TAGGED}" Dayflow/Dayflow/Info.plist
+        echo "Tagged version: ${TAGGED} (stored in CFBundleShortVersionStringTag)"
+
+  package:
+    desc: Build and package Dayflow for distribution as a zip file
+    deps:
+      - tag-version
+    env:
+      MODULE_CACHE_DIR: '{{.DERIVED_DATA}}/ModuleCache.noindex'
+      SWIFTPM_CUSTOM_CACHE_PATH: '{{.DERIVED_DATA}}/SwiftPMCache'
+    vars:
+      PRODUCT_NAME: '{{default "Dayflow.app" .PRODUCT_NAME}}'
+      APP_PATH: '{{printf "%s/Build/Products/%s/%s" .DERIVED_DATA .CONFIG .PRODUCT_NAME}}'
+      DIST_DIR: '{{.ROOT_DIR}}/dist'
+      VERSION: '{{.VERSION | default "latest"}}'
+      ZIP_NAME: '{{printf "Dayflow-%s.zip" .VERSION}}'
+    cmds:
+      - echo "Building {{.SCHEME}} ({{.CONFIG}}) for distribution…"
+      - mkdir -p "{{.DERIVED_DATA}}/ModuleCache.noindex" "{{.DERIVED_DATA}}/SwiftPMCache" "{{.DERIVED_DATA}}/SourcePackages" "{{.DIST_DIR}}"
+      - xcodebuild -project "{{.PROJECT}}" -scheme "{{.SCHEME}}" -configuration "{{.CONFIG}}" -derivedDataPath "{{.DERIVED_DATA}}" -clonedSourcePackagesDirPath "{{.DERIVED_DATA}}/SourcePackages" build CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+      - |
+        if [ ! -d "{{.APP_PATH}}" ]; then
+          echo "Build succeeded but {{.APP_PATH}} not found" >&2
+          exit 1
+        fi
+      - echo "Packaging {{.PRODUCT_NAME}} to {{.DIST_DIR}}/{{.ZIP_NAME}}…"
+      - cd "{{.DERIVED_DATA}}/Build/Products/{{.CONFIG}}" && zip -r "{{.DIST_DIR}}/{{.ZIP_NAME}}" "{{.PRODUCT_NAME}}" -x "*.DS_Store"
+      - echo "Package created successfully at {{.DIST_DIR}}/{{.ZIP_NAME}}"
+      - ls -lh "{{.DIST_DIR}}/{{.ZIP_NAME}}"
