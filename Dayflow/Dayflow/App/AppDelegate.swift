@@ -10,27 +10,21 @@ import ServiceManagement
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
-  enum PendingNotificationNavigationDestination: Equatable {
-    case journal
-    case daily(day: String?)
-  }
-
   // Controls whether the app is allowed to terminate.
   // Default is false so Cmd+Q/Dock/App menu quit will be cancelled
   // and the app will continue running in the background.
   static var allowTermination: Bool = false
 
   // Flag set when app is opened via notification tap - skips video intro
-  static var pendingNotificationNavigationDestination: PendingNotificationNavigationDestination? =
-    nil
+  static var pendingNavigationToJournal: Bool = false
+  static var pendingNavigationToDailyDay: String? = nil
   private var statusBar: StatusBarController!
   private var recorder: ScreenRecorder!
   private var analyticsSub: AnyCancellable?
-  private var analyticsPreferenceObserver: NSObjectProtocol?
   private var powerObserver: NSObjectProtocol?
-  private let screenshotShortcutTracker = ScreenshotShortcutTracker.shared
   private var deepLinkRouter: AppDeepLinkRouter?
   private var pendingDeepLinkURLs: [URL] = []
+  private var pendingRecordingAnalyticsReason: String?
   private var heartbeatTimer: Timer?
   private var appLaunchDate: Date?
   private var foregroundStartTime: Date?
@@ -59,25 +53,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // App opened (cold start)
     AnalyticsService.shared.capture("app_opened", ["cold_start": true])
 
-    // Start heartbeat for DAU tracking
-    appLaunchDate = Date()
-    startHeartbeat()
-    screenshotShortcutTracker.start()
-    updateCPUMonitoring(analyticsEnabled: AnalyticsService.shared.isOptedIn)
-
-    // App updated check
-    let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
-    let lastBuild = UserDefaults.standard.string(forKey: "lastRunBuild")
-    if let last = lastBuild, last != build {
-      let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-      AnalyticsService.shared.capture(
-        "app_updated", ["from_version": last, "to_version": "\(version) (\(build))"])
-    }
-    UserDefaults.standard.set(build, forKey: "lastRunBuild")
-    statusBar = StatusBarController()
-    LaunchAtLoginManager.shared.bootstrapDefaultPreference()
-    deepLinkRouter = AppDeepLinkRouter()
-
     // Check if we've passed the screen recording permission step
     let onboardingStep = OnboardingStepMigration.migrateIfNeeded()
     let didOnboard = UserDefaults.standard.bool(forKey: "didOnboard")
@@ -87,8 +62,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     AppState.shared.isRecording = false
     recorder = ScreenRecorder(autoStart: true)
 
-    // Only attempt to start recording if we're past the screen step or fully onboarded.
-    if didOnboard || OnboardingStep.hasPassedScreenRecordingStep(rawValue: onboardingStep) {
+    // Only attempt to start recording if we're past the screen step or fully onboarded
+    // Steps: 0=welcome, 1=howItWorks, 2=llmSelection, 3=llmSetup, 4=categories, 5=screen, 6=completion
+    if didOnboard || onboardingStep > 5 {
       // Onboarding complete - enable persistence and restore user preference
       AppState.shared.enablePersistence()
 
@@ -101,7 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
           // Permission granted - restore saved preference or default to ON
           await MainActor.run {
             let savedPref = AppState.shared.getSavedPreference()
-            AppState.shared.setRecording(savedPref ?? true, analyticsReason: "auto")
+            AppState.shared.isRecording = savedPref ?? true
           }
           let finalState = await MainActor.run { AppState.shared.isRecording }
           AnalyticsService.shared.capture(
@@ -110,11 +86,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
           // No permission or error - don't start recording
           // User will need to grant permission in onboarding
           await MainActor.run {
-            AppState.shared.setRecording(
-              false,
-              analyticsReason: "auto",
-              persistPreference: false
-            )
+            AppState.shared.isRecording = false
           }
           print("Screen recording permission not granted, skipping auto-start")
         }
@@ -142,9 +114,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Observe recording state
     analyticsSub = AppState.shared.$isRecording
       .removeDuplicates()
-      .sink { enabled in
-        let reason = AppState.shared.consumePendingRecordingAnalyticsReason() ?? "unknown"
+      .sink { [weak self] enabled in
+        guard let self else { return }
+        let reason = self.pendingRecordingAnalyticsReason ?? "user"
         guard reason != "auto" else { return }
+        self.pendingRecordingAnalyticsReason = nil
         AnalyticsService.shared.capture(
           "recording_toggled", ["enabled": enabled, "reason": reason])
         AnalyticsService.shared.setPersonProperties(["recording_enabled": enabled])
@@ -157,19 +131,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     ) { _ in
       MainActor.assumeIsolated {
         AppDelegate.allowTermination = true
-      }
-    }
-
-    analyticsPreferenceObserver = NotificationCenter.default.addObserver(
-      forName: .analyticsPreferenceChanged,
-      object: nil,
-      queue: .main
-    ) { [weak self] notification in
-      MainActor.assumeIsolated {
-        guard let self else { return }
-        let enabled =
-          notification.userInfo?["enabled"] as? Bool ?? AnalyticsService.shared.isOptedIn
-        self.updateCPUMonitoring(analyticsEnabled: enabled)
       }
     }
 
@@ -237,12 +198,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         "analysis_job_started",
         [
           "provider": {
-            switch LLMProviderType.load() {
-            case .geminiDirect: return "gemini"
-            case .dayflowBackend: return "dayflow"
-            case .ollamaLocal: return "ollama"
-            case .chatGPTClaude: return "chat_cli"
+            if let data = UserDefaults.standard.data(forKey: "llmProviderType"),
+               let providerType = try? JSONDecoder().decode(LLMProviderType.self, from: data) {
+              switch providerType {
+              case .geminiDirect: return "gemini"
+              case .ollamaLocal: return "ollama"
+              case .chatGPTClaude: return "chat_cli"
+              }
             }
+            return "unknown"
           }()
         ])
     }
@@ -253,9 +217,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       pendingDeepLinkURLs.append(contentsOf: urls)
       return
     }
-
     for url in urls {
-      _ = deepLinkRouter?.handle(url)
+      _ = deepLinkRouter!.handle(url)
     }
   }
 
@@ -266,23 +229,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     heartbeatTimer?.invalidate()
     heartbeatTimer = nil
-    ProcessCPUMonitor.shared.stop()
-    screenshotShortcutTracker.stop()
 
     if let observer = powerObserver {
       NSWorkspace.shared.notificationCenter.removeObserver(observer)
       powerObserver = nil
-    }
-    if let observer = analyticsPreferenceObserver {
-      NotificationCenter.default.removeObserver(observer)
-      analyticsPreferenceObserver = nil
     }
     DailyRecapScheduler.shared.stop()
     // If onboarding not completed, mark abandoned with last step
     let didOnboard = UserDefaults.standard.bool(forKey: "didOnboard")
     if !didOnboard {
       let stepIdx = OnboardingStepMigration.migrateIfNeeded()
-      let stepName = OnboardingStep(rawValue: stepIdx)?.analyticsName ?? "unknown"
+      let stepName: String = {
+        switch stepIdx {
+        case 0: return "welcome"
+        case 1: return "how_it_works"
+        case 2: return "llm_selection"
+        case 3: return "llm_setup"
+        case 4: return "categories"
+        case 5: return "screen_recording"
+        case 6: return "completion"
+        default: return "unknown"
+        }
+      }()
       AnalyticsService.shared.capture("onboarding_abandoned", ["last_step": stepName])
     }
     AnalyticsService.shared.capture("app_terminated")
@@ -303,8 +271,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Send initial heartbeat
     sendHeartbeat()
 
-    // Schedule repeating timer every hour
-    heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) {
+    // Schedule repeating timer every 12 hours
+    heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 12 * 60 * 60, repeats: true) {
       [weak self] _ in
       MainActor.assumeIsolated {
         self?.sendHeartbeat()
@@ -318,30 +286,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       let sessionHours = Date().timeIntervalSince(launch) / 3600
       props["session_hours"] = round(sessionHours * 10) / 10  // 1 decimal place
     }
-    if let cpuSnapshot = ProcessCPUMonitor.shared.heartbeatSnapshotAndReset() {
-      props["cpu_current_pct_bucket"] = AnalyticsService.shared.cpuPercentBucket(
-        cpuSnapshot.currentCPUPercent)
-      props["cpu_avg_pct_bucket"] = AnalyticsService.shared.cpuPercentBucket(
-        cpuSnapshot.averageCPUPercent)
-      props["cpu_peak_pct_bucket"] = AnalyticsService.shared.cpuPercentBucket(
-        cpuSnapshot.peakCPUPercent)
-      props["cpu_sample_count"] = cpuSnapshot.sampleCount
-      props["cpu_sampler_interval_s"] = Int(cpuSnapshot.samplerInterval)
-    }
-    if let currentTab = AppState.shared.currentTabName {
-      props["current_tab"] = currentTab
-      if currentTab == "timeline", let timelineMode = AppState.shared.currentTimelineMode {
-        props["timeline_mode"] = timelineMode
-      }
-    }
     AnalyticsService.shared.capture("app_heartbeat", props)
   }
+}
 
-  private func updateCPUMonitoring(analyticsEnabled: Bool) {
-    if analyticsEnabled {
-      ProcessCPUMonitor.shared.start()
-    } else {
-      ProcessCPUMonitor.shared.stop()
-    }
+extension AppDelegate: AppDeepLinkRouterDelegate {
+  func prepareForRecordingToggle(reason: String) {
+    pendingRecordingAnalyticsReason = reason
   }
 }

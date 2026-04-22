@@ -2,6 +2,9 @@
 //  DayflowBackendProvider.swift
 //  Dayflow
 //
+//  Generates daily standup summaries using the local Gemini provider.
+//  The remote Dayflow backend is not used in this build.
+//
 
 import Foundation
 
@@ -11,22 +14,19 @@ struct DayflowDailyGenerationRequest: Codable, Sendable {
   let observationsText: String
   let priorDailyText: String
   let preferencesText: String
-  let preferredOutputLanguage: String?
 
   init(
     day: String,
     cardsText: String,
     observationsText: String = "",
     priorDailyText: String = "",
-    preferencesText: String = "",
-    preferredOutputLanguage: String? = nil
+    preferencesText: String = ""
   ) {
     self.day = day
     self.cardsText = cardsText
     self.observationsText = observationsText
     self.priorDailyText = priorDailyText
     self.preferencesText = preferencesText
-    self.preferredOutputLanguage = preferredOutputLanguage
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -35,7 +35,6 @@ struct DayflowDailyGenerationRequest: Codable, Sendable {
     case observationsText = "observations_text"
     case priorDailyText = "prior_daily_text"
     case preferencesText = "preferences_text"
-    case preferredOutputLanguage = "preferred_output_language"
   }
 }
 
@@ -46,178 +45,110 @@ struct DayflowDailyGenerationResponse: Codable, Sendable {
   let blockers: [String]
 }
 
+/// Generates daily standup summaries using the local Gemini provider.
 final class DayflowBackendProvider {
-  private let token: String
-  private let endpoint: String
 
-  init(token: String, endpoint: String = "https://web-production-f3361.up.railway.app") {
-    self.token = token
-    self.endpoint = endpoint
-    #if DEBUG
-      print(
-        "[DayflowBackendProvider] init endpoint=\(endpoint) auth_id_length=\(token.count)"
-      )
-    #endif
-  }
+  // token / endpoint kept for API compatibility but are unused
+  init(token: String = "", endpoint: String = "") {}
 
   func generateDaily(_ request: DayflowDailyGenerationRequest) async throws
     -> DayflowDailyGenerationResponse
   {
-    let requestId = UUID().uuidString
-    let startedAt = Date()
-    let normalizedEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-      .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    guard
+      let apiKey = KeychainManager.shared.retrieve(for: "gemini"),
+      !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+      throw NSError(
+        domain: "DayflowBackend", code: -2,
+        userInfo: [
+          NSLocalizedDescriptionKey:
+            "Gemini API key not configured. Add your key in Settings → Providers."
+        ])
+    }
 
-    let endpointHost: String = {
-      guard let parsed = URL(string: normalizedEndpoint), let host = parsed.host, !host.isEmpty
-      else {
-        return "invalid_host"
+    let provider = GeminiDirectProvider(apiKey: apiKey)
+    let prompt = Self.buildPrompt(from: request)
+    print("[DayflowBackend] Sending standup prompt (\(prompt.count) chars) to Gemini")
+    let (text, _) = try await provider.generateText(prompt: prompt)
+    print("[DayflowBackend] Received response (\(text.count) chars)")
+    return try Self.parseResponse(text: text, day: request.day)
+  }
+
+  // MARK: - Prompt
+
+  private static func buildPrompt(from request: DayflowDailyGenerationRequest) -> String {
+    var sections: [String] = []
+
+    sections.append("""
+      You are a personal productivity assistant. Given a person's recorded timeline activities \
+      for \(request.day), generate a concise standup update.
+
+      Return ONLY valid JSON — no markdown, no code fences, no extra text — in this exact format:
+      {
+        "day": "\(request.day)",
+        "highlights": ["bullet 1", "bullet 2"],
+        "unfinished": ["task 1", "task 2"],
+        "blockers": ["blocker 1"]
       }
-      return host
-    }()
 
-    let baseProps: [String: Any] = [
-      "daily_request_id": requestId,
-      "day": request.day,
-      "endpoint_host": endpointHost,
-      "cards_text_chars": request.cardsText.count,
-      "observations_text_chars": request.observationsText.count,
-      "prior_daily_text_chars": request.priorDailyText.count,
-      "preferences_text_chars": request.preferencesText.count,
-    ]
+      Field rules:
+      • highlights – 2–5 key things accomplished (past tense, concise phrases)
+      • unfinished – 2–4 tasks planned or continuing today (present/future tense, concise)
+      • blockers  – 0–2 impediments; use an empty array [] when there are none
+      Each item is a short phrase, NOT a full sentence.
+      """)
 
-    AnalyticsService.shared.capture("daily_generation_request_started", baseProps)
+    sections.append(request.cardsText)
 
-    var httpStatusCode: Int? = nil
-    var responseByteCount = 0
+    let noObs = "No observations were recorded for \(request.day)."
+    if !request.observationsText.isEmpty, request.observationsText != noObs {
+      sections.append(request.observationsText)
+    }
+
+    if !request.priorDailyText.isEmpty {
+      sections.append("Prior daily summaries for context:\n\(request.priorDailyText)")
+    }
+
+    return sections.joined(separator: "\n\n")
+  }
+
+  // MARK: - Response parsing
+
+  private static func parseResponse(text: String, day: String) throws
+    -> DayflowDailyGenerationResponse
+  {
+    var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    // Strip optional markdown code fences (```json … ```)
+    if cleaned.hasPrefix("```") {
+      let lines = cleaned.components(separatedBy: .newlines)
+      cleaned = lines.dropFirst().joined(separator: "\n")
+      if let range = cleaned.range(of: "```") {
+        cleaned = String(cleaned[..<range.lowerBound])
+      }
+      cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // Trim to the outermost JSON object
+    if let start = cleaned.firstIndex(of: "{"), let end = cleaned.lastIndex(of: "}") {
+      cleaned = String(cleaned[start...end])
+    }
+
+    guard let data = cleaned.data(using: .utf8) else {
+      throw NSError(
+        domain: "DayflowBackend", code: -3,
+        userInfo: [NSLocalizedDescriptionKey: "Could not encode Gemini response as UTF-8"])
+    }
 
     do {
-      guard let url = URL(string: "\(normalizedEndpoint)/v1/daily") else {
-        throw NSError(
-          domain: "DayflowBackend",
-          code: -10,
-          userInfo: [NSLocalizedDescriptionKey: "Invalid Dayflow backend endpoint: \(endpoint)"]
-        )
-      }
-
-      var urlRequest = URLRequest(url: url)
-      urlRequest.httpMethod = "POST"
-      urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-      urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
-      urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-      urlRequest.httpBody = try JSONEncoder().encode(request)
-      print(
-        "[DayflowBackendProvider] daily request_id=\(requestId) day=\(request.day) "
-          + "url=\(url.absoluteString) endpoint_host=\(endpointHost) auth_id_length=\(token.count)"
-      )
-
-      let requestByteCount = urlRequest.httpBody?.count ?? 0
-      let (data, response) = try await URLSession.shared.data(for: urlRequest)
-      responseByteCount = data.count
-
-      guard let httpResponse = response as? HTTPURLResponse else {
-        throw NSError(
-          domain: "DayflowBackend",
-          code: -11,
-          userInfo: [
-            NSLocalizedDescriptionKey: "Daily generation request returned a non-HTTP response."
-          ]
-        )
-      }
-
-      httpStatusCode = httpResponse.statusCode
-      print(
-        "[DayflowBackendProvider] daily response request_id=\(requestId) "
-          + "status=\(httpResponse.statusCode) bytes=\(data.count)"
-      )
-
-      guard (200...299).contains(httpResponse.statusCode) else {
-        let responseBody = String(data: data, encoding: .utf8) ?? ""
-        print(
-          "[DayflowBackendProvider] daily http error request_id=\(requestId) "
-            + "status=\(httpResponse.statusCode) body=\(responseBody)"
-        )
-        throw NSError(
-          domain: "DayflowBackend",
-          code: httpResponse.statusCode,
-          userInfo: [
-            NSLocalizedDescriptionKey:
-              "Daily generation failed (\(httpResponse.statusCode)): \(responseBody)"
-          ]
-        )
-      }
-
-      let decoded: DayflowDailyGenerationResponse
-      do {
-        decoded = try JSONDecoder().decode(DayflowDailyGenerationResponse.self, from: data)
-      } catch {
-        let responseBody = String(data: data, encoding: .utf8) ?? ""
-        print(
-          "[DayflowBackendProvider] daily decode error request_id=\(requestId) body=\(responseBody)"
-        )
-        throw NSError(
-          domain: "DayflowBackend",
-          code: -12,
-          userInfo: [
-            NSLocalizedDescriptionKey: "Failed to decode daily generation response: \(responseBody)"
-          ]
-        )
-      }
-
-      var successProps = baseProps
-      successProps["latency_ms"] = Int(Date().timeIntervalSince(startedAt) * 1000)
-      successProps["http_status"] = httpResponse.statusCode
-      successProps["request_bytes"] = requestByteCount
-      successProps["response_bytes"] = responseByteCount
-      successProps["highlights_count"] = decoded.highlights.count
-      successProps["unfinished_count"] = decoded.unfinished.count
-      successProps["blockers_count"] = decoded.blockers.count
-      AnalyticsService.shared.capture("daily_generation_request_succeeded", successProps)
-
-      return decoded
+      return try JSONDecoder().decode(DayflowDailyGenerationResponse.self, from: data)
     } catch {
-      let nsError = error as NSError
-      var failureProps = baseProps
-      failureProps["latency_ms"] = Int(Date().timeIntervalSince(startedAt) * 1000)
-      failureProps["response_bytes"] = responseByteCount
-      failureProps["error_domain"] = nsError.domain
-      failureProps["error_code"] = nsError.code
-      failureProps["error_message"] = String(nsError.localizedDescription.prefix(500))
-      if let httpStatusCode {
-        failureProps["http_status"] = httpStatusCode
-      } else if nsError.code >= 100, nsError.code <= 599 {
-        failureProps["http_status"] = nsError.code
-      }
-      print(
-        "[DayflowBackendProvider] daily failure request_id=\(requestId) "
-          + "error_domain=\(nsError.domain) error_code=\(nsError.code) "
-          + "error_message=\(nsError.localizedDescription)"
-      )
-      AnalyticsService.shared.capture("daily_generation_request_failed", failureProps)
-      throw error
+      throw NSError(
+        domain: "DayflowBackend", code: -4,
+        userInfo: [
+          NSLocalizedDescriptionKey:
+            "Failed to parse standup JSON: \(error.localizedDescription)"
+        ])
     }
-  }
-
-  func transcribeScreenshots(_ screenshots: [Screenshot], batchStartTime: Date, batchId: Int64?)
-    async throws -> (observations: [Observation], log: LLMCall)
-  {
-    fatalError("DayflowBackendProvider not implemented yet")
-  }
-
-  func generateActivityCards(
-    observations: [Observation], context: ActivityGenerationContext, batchId: Int64?
-  ) async throws -> (cards: [ActivityCardData], log: LLMCall) {
-    fatalError("DayflowBackendProvider not implemented yet")
-  }
-
-  func generateText(prompt: String) async throws -> (text: String, log: LLMCall) {
-    throw NSError(
-      domain: "DayflowBackend",
-      code: -1,
-      userInfo: [
-        NSLocalizedDescriptionKey:
-          "Text generation is not yet supported with Dayflow Backend. Please configure Gemini, Ollama, or ChatGPT/Claude CLI in Settings."
-      ]
-    )
   }
 }
