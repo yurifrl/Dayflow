@@ -66,7 +66,7 @@ private enum DailyAccessFlowStep {
 }
 
 struct DailyView: View {
-  @AppStorage("isDailyUnlocked") private var isUnlocked: Bool = false
+  @AppStorage("isDailyUnlocked") private var isUnlocked: Bool = true
   @Binding var selectedDate: Date
   @EnvironmentObject private var categoryStore: CategoryStore
 
@@ -95,13 +95,12 @@ struct DailyView: View {
   @State private var standupRegenerateTask: Task<Void, Never>? = nil
   @State private var standupRegenerateResetTask: Task<Void, Never>? = nil
   @State private var standupRegeneratingDotsPhase: Int = 1
+  @State private var standupRegenerateError: String? = nil
+  @State private var standupRegenerateErrorResetTask: Task<Void, Never>? = nil
   @State private var hasPersistedStandupEntry: Bool = false
-  @State private var dailyRecapProvider: DailyRecapProvider = DailyRecapProvider.load()
-  @State private var isShowingProviderPicker: Bool = false
-  @State private var isRefreshingProviderAvailability: Bool = false
-  @State private var providerAvailabilityTask: Task<Void, Never>? = nil
-  @State private var providerAvailability: [DailyRecapProvider: DailyRecapProviderAvailability] =
-    [:]
+  @State private var showDayRecording: Bool = false
+  @State private var dayRecordingScreenshots: [Screenshot] = []
+  @State private var dayRecordingLoadTask: Task<Void, Never>? = nil
 
   private let betaNoticeCopy =
     "Daily is a new way to visualize your day and turn it into a standup update fast."
@@ -125,19 +124,15 @@ struct DailyView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     .environment(\.colorScheme, .light)
-    .onAppear {
-      dailyRecapProvider = DailyRecapGenerator.shared.selectedProvider()
-      refreshProviderAvailability()
-      checkNotificationAuthorizationForUnlock()
-    }
-    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification))
-    { _ in
-      checkNotificationAuthorizationForUnlock()
-    }
-    .onChange(of: isUnlocked) { _, newValue in
-      guard !newValue else { return }
-      accessFlowStep = .intro
-      checkNotificationAuthorizationForUnlock()
+    .sheet(isPresented: $showDayRecording) {
+      if !dayRecordingScreenshots.isEmpty {
+        ScreenshotSlideshowModal(
+          screenshots: dayRecordingScreenshots,
+          title: dailyDateTitle(for: selectedDate),
+          startTime: nil,
+          endTime: nil
+        )
+      }
     }
   }
 
@@ -291,6 +286,10 @@ struct DailyView: View {
       standupRegenerateTask = nil
       standupRegenerateResetTask?.cancel()
       standupRegenerateResetTask = nil
+      standupRegenerateState = .idle
+      standupRegenerateError = nil
+      standupRegenerateErrorResetTask?.cancel()
+      standupRegenerateErrorResetTask = nil
       standupRegeneratingDotsPhase = 1
       providerAvailabilityTask?.cancel()
       providerAvailabilityTask = nil
@@ -579,6 +578,19 @@ struct DailyView: View {
           .foregroundStyle(Color(hex: "B46531"))
 
         Spacer()
+
+        // Watch recordings button
+        Button(action: openDayRecording) {
+          HStack(spacing: 4 * scale) {
+            Image(systemName: "play.circle")
+              .font(.system(size: 13 * scale))
+            Text("Watch")
+              .font(.custom("Nunito-SemiBold", size: 12 * scale))
+          }
+          .foregroundStyle(Color(hex: "B46531").opacity(0.85))
+        }
+        .buttonStyle(.plain)
+        .help("Watch a playback of your screenshots for this day")
       }
 
       VStack(spacing: 0) {
@@ -734,10 +746,21 @@ struct DailyView: View {
       dailyProviderButton(scale: scale)
     }
 
-    HStack {
-      Spacer(minLength: 0)
-      actionButtons
+    VStack(alignment: .trailing, spacing: 6 * scale) {
+      HStack {
+        // TODO: Bring back the Highlights/Details toggle when Details mode is ready.
+        Spacer(minLength: 0)
+        actionButtons
+      }
+
+      if let error = standupRegenerateError {
+        Text(error)
+          .font(.custom("Nunito", size: 12 * scale))
+          .foregroundColor(Color(hex: "E91515"))
+          .transition(.opacity.combined(with: .move(edge: .top)))
+      }
     }
+    .animation(.easeInOut(duration: 0.25), value: standupRegenerateError)
   }
 
   private func standupCopyButton(scale: CGFloat) -> some View {
@@ -1115,6 +1138,25 @@ struct DailyView: View {
     }
   }
 
+  private func openDayRecording() {
+    let timelineDate = timelineDisplayDate(from: selectedDate)
+    let dayInfo = timelineDate.getDayInfoFor4AMBoundary()
+    let startTs = Int(dayInfo.startOfDay.timeIntervalSince1970)
+    let endTs = Int(dayInfo.endOfDay.timeIntervalSince1970)
+
+    dayRecordingLoadTask?.cancel()
+    dayRecordingLoadTask = Task.detached(priority: .userInitiated) {
+      let shots = StorageManager.shared.fetchScreenshotsInTimeRange(startTs: startTs, endTs: endTs)
+      await MainActor.run {
+        dayRecordingScreenshots = shots
+        if !shots.isEmpty {
+          showDayRecording = true
+        }
+        dayRecordingLoadTask = nil
+      }
+    }
+  }
+
   private func refreshWorkflowData() {
     workflowLoadTask?.cancel()
     workflowLoadTask = nil
@@ -1275,6 +1317,10 @@ struct DailyView: View {
         print(
           "[Daily] Regenerate failed run_id=\(regenerateRunId) day=\(dayString) reason=no_cards")
         await MainActor.run {
+          standupRegenerateState = .idle
+          standupRegenerateTask = nil
+          standupRegenerateError = "No timeline data for this day"
+          scheduleRegenerateErrorReset()
           AnalyticsService.shared.capture(
             "daily_generation_failed",
             providerProps.merging(
@@ -1338,7 +1384,44 @@ struct DailyView: View {
         ))
       print(
         "[Daily] Regenerate payload run_id=\(regenerateRunId) day=\(dayString) "
-          + "cards=\(cards.count) observations=\(observations.count) prior_daily=\(priorEntries.count) input_mode=\(usesDayflowInputs ? "cards_observations_prior" : "cards_only")"
+          + "cards=\(cards.count) observations=\(observations.count) prior_daily=\(priorEntries.count)"
+      )
+
+      guard
+        let provider = Self.makeDayflowBackendProvider(
+          defaultEndpoint: defaultEndpoint,
+          infoPlistKey: infoPlistKey,
+          overrideDefaultsKey: overrideDefaultsKey,
+          debugRunId: regenerateRunId
+        )
+      else {
+        guard !Task.isCancelled else { return }
+        print(
+          "[Daily] Regenerate failed run_id=\(regenerateRunId) day=\(dayString) "
+            + "reason=missing_dayflow_token"
+        )
+        await MainActor.run {
+          standupRegenerateState = .idle
+          standupRegenerateTask = nil
+          standupRegenerateError = "Gemini API key required — check Settings → Providers"
+          scheduleRegenerateErrorReset()
+          AnalyticsService.shared.capture(
+            "daily_generation_failed",
+            [
+              "timeline_day": dayString,
+              "source": "regenerate_button",
+              "reason": "missing_dayflow_token",
+            ])
+        }
+        return
+      }
+
+      let request = DayflowDailyGenerationRequest(
+        day: dayString,
+        cardsText: cardsText,
+        observationsText: observationsText,
+        priorDailyText: priorDailyText,
+        preferencesText: preferencesText
       )
 
       do {
@@ -1361,6 +1444,10 @@ struct DailyView: View {
               + "reason=encode_failed"
           )
           await MainActor.run {
+            standupRegenerateState = .idle
+            standupRegenerateTask = nil
+            standupRegenerateError = "Failed to process response"
+            scheduleRegenerateErrorReset()
             AnalyticsService.shared.capture(
               "daily_generation_failed",
               providerProps.merging(
@@ -1445,6 +1532,12 @@ struct DailyView: View {
           "[Daily] Regenerate failed run_id=\(regenerateRunId) day=\(dayString) reason=api_error error_domain=\(nsError.domain) error_code=\(nsError.code) error_message=\(nsError.localizedDescription)"
         )
         await MainActor.run {
+          standupRegenerateState = .idle
+          standupRegenerateTask = nil
+          standupRegenerateError = nsError.localizedDescription.isEmpty
+            ? "Generation failed — try again"
+            : nsError.localizedDescription
+          scheduleRegenerateErrorReset()
           AnalyticsService.shared.capture(
             "daily_generation_failed",
             providerProps.merging(
@@ -1466,6 +1559,196 @@ struct DailyView: View {
         }
       }
     }
+  }
+
+  private func scheduleRegenerateErrorReset() {
+    standupRegenerateErrorResetTask?.cancel()
+    standupRegenerateErrorResetTask = Task {
+      try? await Task.sleep(nanoseconds: 4_000_000_000)
+      guard !Task.isCancelled else { return }
+      await MainActor.run {
+        withAnimation(.easeOut(duration: 0.3)) {
+          standupRegenerateError = nil
+        }
+        standupRegenerateErrorResetTask = nil
+      }
+    }
+  }
+
+  nonisolated private static func makeCardsText(day: String, cards: [TimelineCard]) -> String {
+    let ordered = cards.sorted { lhs, rhs in
+      if lhs.startTimestamp == rhs.startTimestamp {
+        return lhs.endTimestamp < rhs.endTimestamp
+      }
+      return lhs.startTimestamp < rhs.startTimestamp
+    }
+
+    guard !ordered.isEmpty else {
+      return "No timeline activities were recorded for \(day)."
+    }
+
+    var lines: [String] = ["Timeline activities for \(day):", ""]
+    for (index, card) in ordered.enumerated() {
+      let title = standupLine(from: card) ?? "Untitled activity"
+      let start = humanReadableClockTime(card.startTimestamp)
+      let end = humanReadableClockTime(card.endTimestamp)
+      lines.append("\(index + 1). \(start) - \(end): \(title)")
+
+      let summary = card.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !summary.isEmpty, summary != title {
+        lines.append("   \(summary)")
+      }
+    }
+
+    return lines.joined(separator: "\n")
+  }
+
+  nonisolated private static func makeObservationsText(day: String, observations: [Observation])
+    -> String
+  {
+    guard !observations.isEmpty else {
+      return "No observations were recorded for \(day)."
+    }
+
+    let ordered = observations.sorted { $0.startTs < $1.startTs }
+    var lines: [String] = ["Observations for \(day):", ""]
+
+    for observation in ordered {
+      let body = observation.observation.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !body.isEmpty else { continue }
+      let time = humanReadableClockTime(unixTimestamp: observation.startTs)
+      lines.append("\(time): \(body)")
+    }
+
+    if lines.count <= 2 {
+      return "No observations were recorded for \(day)."
+    }
+    return lines.joined(separator: "\n")
+  }
+
+  nonisolated private static func makePriorDailyText(entries: [DailyStandupEntry]) -> String {
+    guard !entries.isEmpty else { return "" }
+
+    return entries.map { entry in
+      let payload = entry.payloadJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+      return """
+        Day \(entry.standupDay):
+        \(payload)
+        """
+    }
+    .joined(separator: "\n\n")
+  }
+
+  private func currentPreferencesText(titles: DailyStandupSectionTitles) -> String {
+    let preferences: [String: String] = [
+      "highlights_title": titles.highlights,
+      "tasks_title": titles.tasks,
+      "blockers_title": titles.blockers,
+    ]
+
+    guard
+      let jsonData = try? JSONSerialization.data(
+        withJSONObject: preferences, options: [.sortedKeys]),
+      let jsonString = String(data: jsonData, encoding: .utf8)
+    else {
+      return ""
+    }
+    return jsonString
+  }
+
+  nonisolated private static func makeDayflowBackendProvider(
+    defaultEndpoint: String,
+    infoPlistKey: String,
+    overrideDefaultsKey: String,
+    debugRunId: String
+  ) -> DayflowBackendProvider? {
+    print("[Daily] Creating local Gemini provider run_id=\(debugRunId)")
+    return DayflowBackendProvider()
+  }
+
+  nonisolated private static func resolvedDayflowEndpoint(
+    defaultEndpoint: String,
+    infoPlistKey: String,
+    overrideDefaultsKey: String,
+    debugRunId: String
+  ) -> String {
+    let defaults = UserDefaults.standard
+
+    if let override = defaults.string(forKey: overrideDefaultsKey)?
+      .trimmingCharacters(in: .whitespacesAndNewlines),
+      !override.isEmpty
+    {
+      print(
+        "[Daily] Endpoint resolved run_id=\(debugRunId) source=user_defaults_override value=\(override)"
+      )
+      return override
+    }
+
+    if let infoEndpoint = Bundle.main.infoDictionary?[infoPlistKey] as? String {
+      let trimmed = infoEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmed.isEmpty {
+        print(
+          "[Daily] Endpoint resolved run_id=\(debugRunId) source=info_plist value=\(trimmed)"
+        )
+        return trimmed
+      }
+    }
+
+    print(
+      "[Daily] Endpoint resolved run_id=\(debugRunId) source=default value=\(defaultEndpoint)"
+    )
+    return defaultEndpoint
+  }
+
+  nonisolated private static func normalizedBullets(from values: [String]) -> [DailyBulletItem] {
+    var seen: Set<String> = []
+    return values.compactMap { raw in
+      let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty else { return nil }
+      guard seen.insert(trimmed).inserted else { return nil }
+      return DailyBulletItem(text: trimmed)
+    }
+  }
+
+  nonisolated private static func normalizedBlockersText(from values: [String]) -> String {
+    let rows = values.compactMap { value -> String? in
+      let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmed.isEmpty ? nil : trimmed
+    }
+    return rows.joined(separator: "\n")
+  }
+
+  nonisolated private static func humanReadableClockTime(_ input: String) -> String {
+    let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let minuteOfDay = parseTimeHMMA(timeString: trimmed) else {
+      return trimmed.lowercased()
+    }
+
+    let hour24 = (minuteOfDay / 60) % 24
+    let minute = minuteOfDay % 60
+    let meridiem = hour24 >= 12 ? "pm" : "am"
+    let hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12
+    return String(format: "%d:%02d%@", hour12, minute, meridiem)
+  }
+
+  nonisolated private static func humanReadableClockTime(unixTimestamp: Int) -> String {
+    let date = Date(timeIntervalSince1970: TimeInterval(unixTimestamp))
+    let calendar = Calendar.current
+    let hour24 = calendar.component(.hour, from: date)
+    let minute = calendar.component(.minute, from: date)
+    let meridiem = hour24 >= 12 ? "pm" : "am"
+    let hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12
+    return String(format: "%d:%02d%@", hour12, minute, meridiem)
+  }
+
+  nonisolated private static func standupLine(from card: TimelineCard) -> String? {
+    let trimmedTitle = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !trimmedTitle.isEmpty {
+      return trimmedTitle
+    }
+
+    let trimmedSummary = card.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmedSummary.isEmpty ? nil : trimmedSummary
   }
 
   private func standupClipboardText(for date: Date) -> String {
