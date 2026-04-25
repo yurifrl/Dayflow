@@ -122,10 +122,57 @@ final class DailyRecapScheduler: @unchecked Sendable {
       "daily_model_or_tool": selectedProvider.modelOrTool as Any,
     ]
 
-    guard selectedProvider.canGenerate else {
-      AnalyticsService.shared.capture(
-        "daily_auto_generation_check_skipped",
-        providerProps.merging(
+    let cards = StorageManager.shared.fetchTimelineCards(forDay: recapDay)
+    let observations = StorageManager.shared.fetchObservations(
+      startTs: Int(recapStart.timeIntervalSince1970),
+      endTs: Int(recapEnd.timeIntervalSince1970)
+    )
+    let priorEntries = StorageManager.shared.fetchRecentDailyStandups(
+      limit: priorStandupHistoryLimit,
+      excludingDay: recapDay
+    )
+
+    let cardsText = Self.makeCardsText(day: recapDay, cards: cards)
+    let observationsText = Self.makeObservationsText(day: recapDay, observations: observations)
+    let priorDailyText = Self.makePriorDailyText(entries: priorEntries)
+    let preferencesText = Self.makeDefaultPreferencesText()
+
+    AnalyticsService.shared.capture(
+      "daily_auto_generation_check_started",
+      [
+        "trigger": reason,
+        "target_day": recapDay,
+      ])
+
+    AnalyticsService.shared.capture(
+      "daily_auto_generation_payload_built",
+      [
+        "trigger": reason,
+        "target_day": recapDay,
+        "cards_count": cards.count,
+        "observations_count": observations.count,
+        "prior_daily_count": priorEntries.count,
+        "cards_text_chars": cardsText.count,
+        "observations_text_chars": observationsText.count,
+        "prior_daily_text_chars": priorDailyText.count,
+        "preferences_text_chars": preferencesText.count,
+      ])
+
+    let provider = DayflowBackendProvider()
+    let request = DayflowDailyGenerationRequest(
+      day: recapDay,
+      cardsText: cardsText,
+      observationsText: observationsText,
+      priorDailyText: priorDailyText,
+      preferencesText: preferencesText
+    )
+
+    let startedAt = Date()
+    do {
+      let response = try await provider.generateDaily(request)
+      guard let payloadJSON = Self.makePersistedDailyDraftJSON(from: response) else {
+        AnalyticsService.shared.capture(
+          "daily_auto_generation_failed",
           [
             "trigger": reason,
             "target_day": recapDay,
@@ -346,37 +393,6 @@ final class DailyRecapScheduler: @unchecked Sendable {
     }
 
     return nil
-  }
-
-  private static func resolvedDayflowEndpoint(
-    defaultEndpoint: String,
-    infoPlistKey: String,
-    overrideDefaultsKey: String
-  ) -> String {
-    let defaults = UserDefaults.standard
-
-    if let override = defaults.string(forKey: overrideDefaultsKey)?
-      .trimmingCharacters(in: .whitespacesAndNewlines),
-      !override.isEmpty
-    {
-      return override
-    }
-
-    if let infoEndpoint = Bundle.main.infoDictionary?[infoPlistKey] as? String {
-      let trimmed = infoEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        return trimmed
-      }
-    }
-
-    if case .dayflowBackend(let savedEndpoint) = LLMProviderType.load(from: defaults) {
-      let trimmed = savedEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        return trimmed
-      }
-    }
-
-    return defaultEndpoint
   }
 
   private static func makeCardsText(day: String, cards: [TimelineCard]) -> String {

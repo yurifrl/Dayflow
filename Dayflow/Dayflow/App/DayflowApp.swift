@@ -3,85 +3,79 @@
 //  Dayflow
 //
 
-import Sparkle
 import SwiftUI
 
 struct AppRootView: View {
-  @EnvironmentObject private var categoryStore: CategoryStore
-  @State private var whatsNewNote: ReleaseNote? = nil
-  @State private var activeWhatsNewVersion: String? = nil
-  @State private var shouldMarkWhatsNewSeen = false
+    @EnvironmentObject private var categoryStore: CategoryStore
+    @State private var whatsNewNote: ReleaseNote? = nil
+    @State private var activeWhatsNewVersion: String? = nil
+    @State private var shouldMarkWhatsNewSeen = false
+    @StateObject private var obsidianSettings = ObsidianSettingsStore()
+    @StateObject private var autoDailyReportSettings = AutoDailyReportSettingsStore()
+    @StateObject private var autoDailyReportService = AutoDailyReportService.shared
 
-  var body: some View {
-    MainView()
-      .environmentObject(AppState.shared)
-      .environmentObject(categoryStore)
-      .onAppear {
-        guard whatsNewNote == nil else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-          if let note = WhatsNewConfiguration.pendingReleaseForCurrentBuild() {
-            whatsNewNote = note
-            activeWhatsNewVersion = note.version
-            shouldMarkWhatsNewSeen = true
-          }
-        }
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .showWhatsNew)) { _ in
-        guard let release = WhatsNewConfiguration.latestRelease() else { return }
-        whatsNewNote = release
-        activeWhatsNewVersion = release.version
-        shouldMarkWhatsNewSeen = release.version == currentAppVersion
+    var body: some View {
+        MainView()
+            .environmentObject(AppState.shared)
+            .environmentObject(categoryStore)
+            .environmentObject(obsidianSettings)
+            .environmentObject(autoDailyReportSettings)
+            .onAppear {
+                autoDailyReportService.start()
+            }
+            .onDisappear {
+                autoDailyReportService.stop()
+            }
+            .onAppear {
+                guard whatsNewNote == nil else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if let note = WhatsNewConfiguration.pendingReleaseForCurrentBuild() {
+                        whatsNewNote = note
+                        activeWhatsNewVersion = note.version
+                        shouldMarkWhatsNewSeen = true
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .showWhatsNew)) { _ in
+                guard let release = WhatsNewConfiguration.latestRelease() else { return }
+                whatsNewNote = release
+                activeWhatsNewVersion = release.version
+                shouldMarkWhatsNewSeen = release.version == currentAppVersion
 
-        // Analytics: track manual view
-        AnalyticsService.shared.capture(
-          "whats_new_viewed_manual",
-          [
-            "version": release.version
-          ])
-      }
-      .sheet(item: $whatsNewNote, onDismiss: handleWhatsNewDismissed) { note in
-        ZStack {
-          // Backdrop
-          Color.black.opacity(0.4)
-            .ignoresSafeArea()
+                // Analytics: track manual view
+                AnalyticsService.shared.capture("whats_new_viewed_manual", [
+                    "version": release.version
+                ])
+            }
+            .sheet(item: $whatsNewNote, onDismiss: handleWhatsNewDismissed) { note in
+                ZStack {
+                    // Backdrop
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
 
-          WhatsNewView(releaseNote: note) {
-            closeWhatsNew()
-          }
-        }
-        .environment(\.colorScheme, .light)
-        .preferredColorScheme(.light)
-      }
-  }
-
-  private func closeWhatsNew() {
-    whatsNewNote = nil
-  }
-
-  private func handleWhatsNewDismissed() {
-    guard let version = activeWhatsNewVersion else { return }
-    if shouldMarkWhatsNewSeen {
-      WhatsNewConfiguration.markReleaseAsSeen(version: version)
-      AnalyticsService.shared.capture(
-        "whats_new_viewed",
-        [
-          "version": version,
-          "source": "auto",
-        ])
+                    WhatsNewView(releaseNote: note) {
+                        closeWhatsNew()
+                    }
+                }
+            }
     }
-    AnalyticsService.shared.capture(
-      "whats_new_viewed",
-      [
-        "version": version,
-        "source": "manual",
-      ])
-    activeWhatsNewVersion = nil
-    shouldMarkWhatsNewSeen = false
-  }
 
-  private var currentAppVersion: String {
-    Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-  }
+    private func closeWhatsNew() {
+        whatsNewNote = nil
+    }
+
+    private func handleWhatsNewDismissed() {
+        guard let version = activeWhatsNewVersion else { return }
+        if shouldMarkWhatsNewSeen {
+            WhatsNewConfiguration.markReleaseAsSeen(version: version)
+        }
+        activeWhatsNewVersion = nil
+        shouldMarkWhatsNewSeen = false
+    }
+
+    private var currentAppVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }
 }
 
 @main
@@ -96,13 +90,13 @@ struct DayflowApp: App {
   @StateObject private var categoryStore = CategoryStore()
   @StateObject private var journalCoordinator = JournalCoordinator()
 
-  init() {
-    // Comment out for production - only use for testing onboarding
-    // UserDefaults.standard.set(false, forKey: "didOnboard")
-  }
-
-  // Sparkle updater manager
-  private let updaterManager = UpdaterManager.shared
+    init() {
+        // Comment out for production - only use for testing onboarding
+        // UserDefaults.standard.set(false, forKey: "didOnboard")
+    }
+    
+    // Enterprise updater stub (no network traffic)
+    private let updaterManager = UpdaterManager.shared
 
   var body: some Scene {
     Window("Dayflow", id: "main") {
@@ -147,18 +141,7 @@ struct DayflowApp: App {
 
               dispatchPendingNotificationNavigation(after: 0.3)
             }
-            .opacity(showVideoLaunch ? 1 : 0)
-            .scaleEffect(showVideoLaunch ? 1 : 1.02)
-            .animation(.easeIn(duration: 0.2), value: showVideoLaunch)
-            .onAppear {
-              // Skip video if opening via notification tap
-              if hasPendingNotificationNavigation {
-                showVideoLaunch = false
-                contentOpacity = 1.0
-                contentScale = 1.0
-                dispatchPendingNotificationNavigation(after: 0.1)
-              }
-            }
+            
         }
 
         // Journal onboarding video (full window coverage, above sidebar)
