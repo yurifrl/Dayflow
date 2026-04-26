@@ -657,7 +657,7 @@ private actor ActivityCardTimelapseGenerator {
   }
 }
 
-private struct ScreenshotSlideshowModal: View {
+struct ScreenshotSlideshowModal: View {
   let screenshots: [Screenshot]
   let title: String?
   let startTime: Date?

@@ -108,130 +108,63 @@ final class DailyRecapScheduler: @unchecked Sendable {
     let recapDay = recapTarget.dayString
     let recapStart = recapTarget.startOfDay
     let recapEnd = recapTarget.endOfDay
-    let selectedProvider = DailyRecapGenerator.shared.selectedProvider()
-    let providerAvailability =
-      DailyRecapGenerator.shared.availabilitySnapshot()[selectedProvider]
-      ?? DailyRecapProviderAvailability(
-        isAvailable: true,
-        detail: selectedProvider.pickerSubtitle
-      )
-    let providerProps: [String: Any] = [
-      "daily_provider": selectedProvider.analyticsName,
-      "daily_provider_label": selectedProvider.displayName,
-      "daily_runtime": selectedProvider.runtimeLabel,
-      "daily_model_or_tool": selectedProvider.modelOrTool as Any,
-    ]
-
-    guard selectedProvider.canGenerate else {
-      AnalyticsService.shared.capture(
-        "daily_auto_generation_check_skipped",
-        providerProps.merging(
-          [
-            "trigger": reason,
-            "target_day": recapDay,
-            "reason": "no_provider_selected",
-          ],
-          uniquingKeysWith: { _, new in new }
-        ))
-      return
-    }
-
-    guard providerAvailability.isAvailable else {
-      AnalyticsService.shared.capture(
-        "daily_auto_generation_check_skipped",
-        providerProps.merging(
-          [
-            "trigger": reason,
-            "target_day": recapDay,
-            "reason": "provider_unavailable",
-            "provider_detail": providerAvailability.detail,
-          ],
-          uniquingKeysWith: { _, new in new }
-        ))
-      return
-    }
-
-    let usesDayflowInputs = selectedProvider.usesDayflowInputs
 
     let cards = StorageManager.shared.fetchTimelineCards(forDay: recapDay)
-    let observations =
-      usesDayflowInputs
-      ? StorageManager.shared.fetchObservations(
-        startTs: Int(recapStart.timeIntervalSince1970),
-        endTs: Int(recapEnd.timeIntervalSince1970)
-      ) : []
-    let priorEntries =
-      usesDayflowInputs
-      ? StorageManager.shared.fetchRecentDailyStandups(
-        limit: priorStandupHistoryLimit,
-        excludingDay: recapDay
-      ) : []
+    let observations = StorageManager.shared.fetchObservations(
+      startTs: Int(recapStart.timeIntervalSince1970),
+      endTs: Int(recapEnd.timeIntervalSince1970)
+    )
+    let priorEntries = StorageManager.shared.fetchRecentDailyStandups(
+      limit: priorStandupHistoryLimit,
+      excludingDay: recapDay
+    )
 
-    let cardsText = DailyRecapGenerator.makeCardsText(day: recapDay, cards: cards)
-    let observationsText =
-      usesDayflowInputs
-      ? DailyRecapGenerator.makeObservationsText(day: recapDay, observations: observations) : ""
-    let priorDailyText =
-      usesDayflowInputs ? DailyRecapGenerator.makePriorDailyText(entries: priorEntries) : ""
-    let preferencesText =
-      usesDayflowInputs
-      ? DailyRecapGenerator.makePreferencesText(
-        highlightsTitle: "Yesterday's highlights",
-        tasksTitle: "Today's tasks",
-        blockersTitle: "Blockers"
-      ) : ""
+    let cardsText = Self.makeCardsText(day: recapDay, cards: cards)
+    let observationsText = Self.makeObservationsText(day: recapDay, observations: observations)
+    let priorDailyText = Self.makePriorDailyText(entries: priorEntries)
+    let preferencesText = Self.makeDefaultPreferencesText()
+
     AnalyticsService.shared.capture(
       "daily_auto_generation_check_started",
-      providerProps.merging(
-        [
-          "trigger": reason,
-          "target_day": recapDay,
-        ],
-        uniquingKeysWith: { _, new in new }
-      ))
+      [
+        "trigger": reason,
+        "target_day": recapDay,
+      ])
 
     AnalyticsService.shared.capture(
       "daily_auto_generation_payload_built",
-      providerProps.merging(
-        [
-          "trigger": reason,
-          "target_day": recapDay,
-          "input_mode": usesDayflowInputs ? "cards_observations_prior" : "cards_only",
-          "cards_count": cards.count,
-          "observations_count": observations.count,
-          "prior_daily_count": priorEntries.count,
-          "cards_text_chars": cardsText.count,
-          "observations_text_chars": observationsText.count,
-          "prior_daily_text_chars": priorDailyText.count,
-          "preferences_text_chars": preferencesText.count,
-        ],
-        uniquingKeysWith: { _, new in new }
-      ))
+      [
+        "trigger": reason,
+        "target_day": recapDay,
+        "cards_count": cards.count,
+        "observations_count": observations.count,
+        "prior_daily_count": priorEntries.count,
+        "cards_text_chars": cardsText.count,
+        "observations_text_chars": observationsText.count,
+        "prior_daily_text_chars": priorDailyText.count,
+        "preferences_text_chars": preferencesText.count,
+      ])
+
+    let provider = DayflowBackendProvider()
+    let request = DayflowDailyGenerationRequest(
+      day: recapDay,
+      cardsText: cardsText,
+      observationsText: observationsText,
+      priorDailyText: priorDailyText,
+      preferencesText: preferencesText
+    )
 
     let startedAt = Date()
     do {
-      let context = DailyRecapGenerationContext(
-        targetDayString: recapDay,
-        sourceDayString: recapDay,
-        cards: cards,
-        observations: observations,
-        priorEntries: priorEntries,
-        highlightsTitle: "Yesterday's highlights",
-        tasksTitle: "Today's tasks",
-        blockersTitle: "Blockers"
-      )
-      let draft = try await DailyRecapGenerator.shared.generate(context: context)
-      guard let payloadJSON = draft.encodedJSONString() else {
+      let response = try await provider.generateDaily(request)
+      guard let payloadJSON = Self.makePersistedDailyDraftJSON(from: response) else {
         AnalyticsService.shared.capture(
           "daily_auto_generation_failed",
-          providerProps.merging(
-            [
-              "trigger": reason,
-              "target_day": recapDay,
-              "failure_reason": "payload_encoding_failed",
-            ],
-            uniquingKeysWith: { _, new in new }
-          ))
+          [
+            "trigger": reason,
+            "target_day": recapDay,
+            "failure_reason": "payload_encoding_failed",
+          ])
         return
       }
 
@@ -239,32 +172,23 @@ final class DailyRecapScheduler: @unchecked Sendable {
       guard StorageManager.shared.fetchDailyStandup(forDay: recapDay) != nil else {
         AnalyticsService.shared.capture(
           "daily_auto_generation_failed",
-          providerProps.merging(
-            [
-              "trigger": reason,
-              "target_day": recapDay,
-              "failure_reason": "db_save_verification_failed",
-            ],
-            uniquingKeysWith: { _, new in new }
-          ))
+          [
+            "trigger": reason,
+            "target_day": recapDay,
+            "failure_reason": "db_save_verification_failed",
+          ])
         return
       }
       AnalyticsService.shared.capture(
         "daily_auto_generation_succeeded",
-        providerProps.merging(
-          [
-            "trigger": reason,
-            "target_day": recapDay,
-            "latency_ms": Int(Date().timeIntervalSince(startedAt) * 1000),
-            "highlights_count": draft.highlights.count,
-            "tasks_count": draft.tasks.count,
-            "unfinished_count": draft.tasks.count,
-            "blockers_count": draft.blockersBody
-              .split(whereSeparator: \.isNewline)
-              .count,
-          ],
-          uniquingKeysWith: { _, new in new }
-        ))
+        [
+          "trigger": reason,
+          "target_day": recapDay,
+          "latency_ms": Int(Date().timeIntervalSince(startedAt) * 1000),
+          "highlights_count": response.highlights.count,
+          "unfinished_count": response.unfinished.count,
+          "blockers_count": response.blockers.count,
+        ])
 
       await MainActor.run {
         NotificationService.shared.scheduleDailyRecapReadyNotification(forDay: recapDay)
@@ -273,17 +197,14 @@ final class DailyRecapScheduler: @unchecked Sendable {
       let nsError = error as NSError
       AnalyticsService.shared.capture(
         "daily_auto_generation_failed",
-        providerProps.merging(
-          [
-            "trigger": reason,
-            "target_day": recapDay,
-            "failure_reason": "api_error",
-            "error_domain": nsError.domain,
-            "error_code": nsError.code,
-            "error_message": String(nsError.localizedDescription.prefix(500)),
-          ],
-          uniquingKeysWith: { _, new in new }
-        ))
+        [
+          "trigger": reason,
+          "target_day": recapDay,
+          "failure_reason": "api_error",
+          "error_domain": nsError.domain,
+          "error_code": nsError.code,
+          "error_message": String(nsError.localizedDescription.prefix(500)),
+        ])
     }
   }
 
@@ -346,37 +267,6 @@ final class DailyRecapScheduler: @unchecked Sendable {
     }
 
     return nil
-  }
-
-  private static func resolvedDayflowEndpoint(
-    defaultEndpoint: String,
-    infoPlistKey: String,
-    overrideDefaultsKey: String
-  ) -> String {
-    let defaults = UserDefaults.standard
-
-    if let override = defaults.string(forKey: overrideDefaultsKey)?
-      .trimmingCharacters(in: .whitespacesAndNewlines),
-      !override.isEmpty
-    {
-      return override
-    }
-
-    if let infoEndpoint = Bundle.main.infoDictionary?[infoPlistKey] as? String {
-      let trimmed = infoEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        return trimmed
-      }
-    }
-
-    if case .dayflowBackend(let savedEndpoint) = LLMProviderType.load(from: defaults) {
-      let trimmed = savedEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        return trimmed
-      }
-    }
-
-    return defaultEndpoint
   }
 
   private static func makeCardsText(day: String, cards: [TimelineCard]) -> String {
