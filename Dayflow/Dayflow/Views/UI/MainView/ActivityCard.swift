@@ -657,7 +657,7 @@ private actor ActivityCardTimelapseGenerator {
   }
 }
 
-private struct ScreenshotSlideshowModal: View {
+struct ScreenshotSlideshowModal: View {
   let screenshots: [Screenshot]
   let title: String?
   let startTime: Date?
@@ -1335,7 +1335,7 @@ extension Comparable {
 }
 
 @MainActor
-private final class ScreenshotSlideshowPlaybackModel: ObservableObject {
+final class ScreenshotSlideshowPlaybackModel: ObservableObject {
   let frameCount: Int
   let mediaState = ScreenshotSlideshowPlaybackMediaState()
   let timelineState = ScreenshotSlideshowPlaybackTimelineState()

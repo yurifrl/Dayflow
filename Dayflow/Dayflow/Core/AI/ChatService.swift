@@ -229,7 +229,7 @@ final class ChatService: ObservableObject {
 
     do {
       // Use rich streaming with thinking and tool events
-      let stream = LLMService.shared.generateChatStreaming(request: request)
+      let stream = LLMService.shared.generateDashboardChatStreaming(request)
 
       for try await event in stream {
         switch event {
@@ -1197,8 +1197,8 @@ final class ChatService: ObservableObject {
 extension ChatService {
   /// Check if an LLM provider is configured
   static var isProviderConfigured: Bool {
-    let geminiKey = KeychainManager.shared.retrieve(for: "gemini")?
-      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let raw = KeychainManager.shared.retrieve(for: "gemini")
+    let geminiKey = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     return !geminiKey.isEmpty || CLIDetector.isInstalled(.codex) || CLIDetector.isInstalled(.claude)
   }
 }

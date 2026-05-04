@@ -1,6 +1,5 @@
-import AppKit
-import Sentry
 import SwiftUI
+import AppKit
 
 private struct TimelineHeaderTrailingWidthPreferenceKey: PreferenceKey {
   static var defaultValue: CGFloat = 0
@@ -390,10 +389,6 @@ extension MainView {
       selectedIcon = .settings
       timelineFailureToastPayload = nil
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-      NotificationCenter.default.post(name: .openProvidersSettings, object: nil)
-    }
-  }
 
   private func handleTimelineFailureToastDismiss(_ payload: TimelineFailureToastPayload) {
     AnalyticsService.shared.capture("llm_timeline_failure_toast_dismissed", payload.analyticsProps)
@@ -486,22 +481,6 @@ extension MainView {
     }
     .padding(0)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    .background(mainPanelBackground)
-  }
-
-  private var mainPanelBackground: some View {
-    ZStack {
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .fill(Color.white)
-        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 0)
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .fill(Color.white)
-        .blendMode(.destinationOut)
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .fill(.white.opacity(0.22))
-    }
-    .compositingGroup()
   }
 
   private func timelinePanel(geo: GeometryProxy) -> some View {
@@ -512,9 +491,6 @@ extension MainView {
         .fill(Color(hex: "ECECEC"))
         .frame(width: timelineInspectorDividerWidth)
         .opacity(timelineInspectorDividerWidth == 0 ? 0 : 1)
-        .frame(maxHeight: .infinity)
-      timelineRightColumn(geo: geo)
-    }
     .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
     .coordinateSpace(name: "TimelinePanel")
     .overlay(alignment: .topLeading) {
@@ -1034,8 +1010,6 @@ extension MainView {
       .opacity(contentOpacity)
       .animation(timelineModeContentAnimation, value: timelineMode)
     }
-    .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  }
 
   private var timelineFooter: some View {
     let weeklyHoursOpacity =
@@ -1313,16 +1287,10 @@ extension MainView {
       )
       .contentShape(Rectangle())
     }
-    .buttonStyle(ShrinkButtonStyle())
+    .buttonStyle(DayflowPressScaleButtonStyle(pressedScale: 0.97))
+    .hoverScaleEffect(scale: 1.02)
+    .pointingHandCursorOnHover(reassertOnPressEnd: true)
     .disabled(copyTimelineState == .copying)
-    .hoverScaleEffect(
-      enabled: copyTimelineState != .copying,
-      scale: 1.02
-    )
-    .pointingHandCursorOnHover(
-      enabled: copyTimelineState != .copying,
-      reassertOnPressEnd: true
-    )
     .accessibilityLabel(Text("Copy timeline to clipboard"))
   }
 }
@@ -1330,73 +1298,69 @@ extension MainView {
 private struct ShrinkButtonStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .dayflowPressScale(
-        configuration.isPressed,
-        pressedScale: 0.97,
-        animation: .spring(response: 0.25, dampingFraction: 0.7)
-      )
+      .scaleEffect(configuration.isPressed ? 0.96 : 1)
+      .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+      .opacity(1)
   }
 }
 
 private struct TimelineFailureToastView: View {
-  let message: String
-  let onOpenSettings: () -> Void
-  let onDismiss: () -> Void
+    let message: String
+    let onOpenSettings: () -> Void
+    let onDismiss: () -> Void
 
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(alignment: .top, spacing: 10) {
-        Image(systemName: "exclamationmark.triangle.fill")
-          .font(.system(size: 14))
-          .foregroundColor(Color(hex: "C04A00"))
-          .padding(.top, 2)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hex: "C04A00"))
+                    .padding(.top, 2)
 
-        Text(message)
-          .font(.custom("Nunito", size: 13))
-          .foregroundColor(.black.opacity(0.82))
-          .fixedSize(horizontal: false, vertical: true)
+                Text(message)
+                    .font(.custom("Nunito", size: 13))
+                    .foregroundColor(.black.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
 
-        Button(action: onDismiss) {
-          Image(systemName: "xmark")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(.black.opacity(0.45))
-            .frame(width: 18, height: 18)
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.45))
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.plain)
+            }
+
+            DayflowSurfaceButton(
+                action: onOpenSettings,
+                content: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 12))
+                        Text("Open Provider Settings")
+                            .font(.custom("Nunito", size: 12))
+                            .fontWeight(.semibold)
+                    }
+                },
+                background: Color(red: 0.25, green: 0.17, blue: 0),
+                foreground: .white,
+                borderColor: .clear,
+                cornerRadius: 8,
+                horizontalPadding: 14,
+                verticalPadding: 8,
+                showOverlayStroke: true
+            )
         }
-        .buttonStyle(.plain)
-        .hoverScaleEffect(scale: 1.02)
-        .pointingHandCursorOnHover(reassertOnPressEnd: true)
-      }
-
-      DayflowSurfaceButton(
-        action: onOpenSettings,
-        content: {
-          HStack(spacing: 6) {
-            Image(systemName: "gearshape")
-              .font(.system(size: 12))
-            Text("Open Provider Settings")
-              .font(.custom("Nunito", size: 12))
-              .fontWeight(.semibold)
-          }
-        },
-        background: Color(red: 0.25, green: 0.17, blue: 0),
-        foreground: .white,
-        borderColor: .clear,
-        cornerRadius: 8,
-        horizontalPadding: 14,
-        verticalPadding: 8,
-        showOverlayStroke: true
-      )
+        .padding(14)
+        .frame(width: 360, alignment: .leading)
+        .background(Color(hex: "FFF8F2"))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(hex: "F3D9C2"), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
     }
-    .padding(14)
-    .frame(width: 360, alignment: .leading)
-    .background(Color(hex: "FFF8F2"))
-    .cornerRadius(12)
-    .overlay(
-      RoundedRectangle(cornerRadius: 12)
-        .stroke(Color(hex: "F3D9C2"), lineWidth: 1)
-    )
-    .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
-  }
 }
 
 private struct ScreenRecordingPermissionNoticeView: View {

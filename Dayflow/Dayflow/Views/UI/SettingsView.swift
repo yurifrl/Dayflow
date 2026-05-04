@@ -14,6 +14,7 @@ struct SettingsView: View {
     case storage
     case privacy
     case providers
+    case obsidian
     case data
     case other
 
@@ -25,8 +26,20 @@ struct SettingsView: View {
       case .storage: return "Storage"
       case .privacy: return "Privacy"
       case .providers: return "Providers"
+      case .obsidian: return "Obsidian"
       case .data: return "Export"
       case .other: return "Other"
+      }
+    }
+
+    var subtitle: String {
+      switch self {
+      case .storage: return "Recording status and disk usage"
+      case .providers: return "Manage LLM providers and customize prompts"
+      case .obsidian: return "Vault path & auto-export"
+      case .data: return "Export timeline data"
+      case .other: return "General preferences & support"
+      default: return ""
       }
     }
   }
@@ -41,6 +54,8 @@ struct SettingsView: View {
   @StateObject private var privacyViewModel = RecordingPrivacySettingsViewModel()
   @StateObject private var providersViewModel = ProvidersSettingsViewModel()
   @StateObject private var otherViewModel = OtherSettingsViewModel()
+  @EnvironmentObject var obsidianStore: ObsidianSettingsStore
+  @EnvironmentObject var autoReportStore: AutoDailyReportSettingsStore
 
   var body: some View {
     contentWithSheets
@@ -246,6 +261,8 @@ struct SettingsView: View {
         SettingsRecordingPrivacyTabView(viewModel: privacyViewModel)
       case .providers:
         SettingsProvidersTabView(viewModel: providersViewModel)
+      case .obsidian:
+        SettingsObsidianTabView(obsidianStore: obsidianStore, autoReportStore: autoReportStore)
       case .data:
         SettingsDataTabView(viewModel: otherViewModel)
       case .other:

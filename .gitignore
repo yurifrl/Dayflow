@@ -10,6 +10,7 @@ evals/
 build/
 build_tmp/
 build_universal/
+.build-cache/
 .claude/
 scripts/release.env
 signed/
@@ -28,3 +29,7 @@ tools/
 # Eval frameworks
 claudeeval/
 codexeval/
+.derivedData/
+sec-analysis.md
+TODO.md
+.ant-colony/
