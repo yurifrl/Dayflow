@@ -552,7 +552,11 @@ struct WhatsNewView: View {
   }
 
   private var currentProviderType: LLMProviderType {
-    LLMProviderType.load()
+    guard let data = UserDefaults.standard.data(forKey: "llmProviderType"),
+          let decoded = try? JSONDecoder().decode(LLMProviderType.self, from: data) else {
+      return .geminiDirect
+    }
+    return decoded
   }
 
   private var preferredChatCLITool: ChatCLITool {
