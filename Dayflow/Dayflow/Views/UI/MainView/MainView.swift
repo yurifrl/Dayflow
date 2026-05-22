@@ -97,6 +97,13 @@ struct MainView: View {
     return formatter
   }()
 
+  static let maxDateTitleWidth: CGFloat = {
+    let referenceText = "Today, Sep 30"
+    let font = NSFont(name: "InstrumentSerif-Regular", size: 36) ?? NSFont.systemFont(ofSize: 36)
+    let width = referenceText.size(withAttributes: [.font: font]).width
+    return ceil(width) + 4
+  }()
+
   init(goalFlowPresentation: Binding<DayGoalFlowPresentation?> = .constant(nil)) {
     _goalFlowPresentation = goalFlowPresentation
   }

@@ -52,7 +52,7 @@ struct FlexibleProviderCard: View {
     self.showCurrentlySelected = showCurrentlySelected
     self.customStatusText = customStatusText
     self.onSelect = onSelect
-    self.isComingSoon = id == "dayflow"
+    self.isComingSoon = false
   }
 
   var body: some View {
