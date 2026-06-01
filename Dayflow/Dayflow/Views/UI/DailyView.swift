@@ -4,7 +4,8 @@ import SwiftUI
 import UserNotifications
 
 struct DailyView: View {
-  @AppStorage("isDailyUnlocked") var isUnlocked: Bool = false
+  // Fork: keep Daily unlocked by default (bypass beta gate). Non-private so extensions can read it.
+  @AppStorage("isDailyUnlocked") var isUnlocked: Bool = true
   @Binding var selectedDate: Date
   @EnvironmentObject var categoryStore: CategoryStore
 
@@ -41,6 +42,10 @@ struct DailyView: View {
   @State var providerAvailabilityTask: Task<Void, Never>? = nil
   @State var providerAvailability: [DailyRecapProvider: DailyRecapProviderAvailability] =
     [:]
+  // Fork: "Watch" day-recording slideshow state.
+  @State var showDayRecording: Bool = false
+  @State var dayRecordingScreenshots: [Screenshot] = []
+  @State var dayRecordingLoadTask: Task<Void, Never>? = nil
 
   let betaNoticeCopy =
     "Daily is a new way to visualize your day and turn it into a standup update fast."
@@ -64,6 +69,17 @@ struct DailyView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     .environment(\.colorScheme, .light)
+    // Fork: "Watch" day-recording slideshow sheet.
+    .sheet(isPresented: $showDayRecording) {
+      if !dayRecordingScreenshots.isEmpty {
+        ScreenshotSlideshowModal(
+          screenshots: dayRecordingScreenshots,
+          title: dailyDateTitle(for: selectedDate),
+          startTime: nil,
+          endTime: nil
+        )
+      }
+    }
     .onAppear {
       refreshDailyAccessProgress()
       dailyRecapProvider = DailyRecapGenerator.shared.selectedProvider()
@@ -72,6 +88,22 @@ struct DailyView: View {
     }
     .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
       refreshDailyAccessProgress()
+    }
+    .onDisappear {
+      workflowLoadTask?.cancel()
+      workflowLoadTask = nil
+      standupDraftSaveTask?.cancel()
+      standupDraftSaveTask = nil
+      standupCopyResetTask?.cancel()
+      standupCopyResetTask = nil
+      standupRegenerateTask?.cancel()
+      standupRegenerateTask = nil
+      standupRegenerateResetTask?.cancel()
+      standupRegenerateResetTask = nil
+      standupRegenerateState = .idle
+      standupRegeneratingDotsPhase = 1
+      dayRecordingLoadTask?.cancel()
+      dayRecordingLoadTask = nil
     }
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification))
     { _ in
@@ -89,6 +121,26 @@ struct DailyView: View {
       completedAccessBatchCount,
       requiredBatchCount: FeatureAccessRequirements.dailyRequiredBatchCount
     )
+  }
+
+  // Fork: load and present the day's screenshots as a slideshow.
+  func openDayRecording() {
+    let timelineDate = timelineDisplayDate(from: selectedDate)
+    let dayInfo = timelineDate.getDayInfoFor4AMBoundary()
+    let startTs = Int(dayInfo.startOfDay.timeIntervalSince1970)
+    let endTs = Int(dayInfo.endOfDay.timeIntervalSince1970)
+
+    dayRecordingLoadTask?.cancel()
+    dayRecordingLoadTask = Task.detached(priority: .userInitiated) {
+      let shots = StorageManager.shared.fetchScreenshotsInTimeRange(startTs: startTs, endTs: endTs)
+      await MainActor.run {
+        dayRecordingScreenshots = shots
+        if !shots.isEmpty {
+          showDayRecording = true
+        }
+        dayRecordingLoadTask = nil
+      }
+    }
   }
 
   var dailyAccessProgressText: String {

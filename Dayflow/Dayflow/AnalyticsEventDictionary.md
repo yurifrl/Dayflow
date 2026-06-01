@@ -1,6 +1,6 @@
-# Dayflow Analytics Event Dictionary (PostHog)
+# Dayflow Analytics Event Dictionary (Telemetry Disabled)
 
-This document lists manual events, properties, and code locations. All events respect opt-in and are PII-free. Durations and sizes are bucketed.
+This reference is retained for historical context; the enterprise build ships with analytics disabled and the instrumentation stubs are no-ops. If the event pipeline is re-enabled in a future fork, these notes describe the intended payloads.
 
 ## Conventions
 - Event names: snake_case
@@ -40,7 +40,7 @@ This document lists manual events, properties, and code locations. All events re
   - props: `source: hacker_news|x|friend|youtube|newsletter_blog|chatgpt_claude_ai|other`, `surface: onboarding_referral`, `detail?: string`
   - file: Views/Onboarding/OnboardingFlow.swift
 - llm_provider_selected
-  - props: `provider: dayflow|chatgpt_claude|gemini|ollama`, `local_engine?: ollama|lmstudio|custom`
+  - props: `provider: gemini|ollama`
   - file: Views/Onboarding/OnboardingFlow.swift
 - dayflow_pro_selected
   - props: `surface: onboarding_dayflow_pro`, `flow_id: string`, `flow_variant: string`, `has_paid_ai: bool`, `selection_stage: started_sign_in|continued`
@@ -78,7 +78,7 @@ This document lists manual events, properties, and code locations. All events re
   - props: `from: string`, `to: string`
   - file: Views/UI/SettingsView.swift
 - provider_setup_completed
-  - props: `provider: gemini|ollama|dayflow`
+  - props: `provider: gemini|ollama`
   - file: Views/UI/SettingsView.swift
 
 ## Navigation & Timeline
@@ -164,7 +164,7 @@ This document lists manual events, properties, and code locations. All events re
 
 ## AI / LLM / Analysis
 - analysis_job_started
-  - props: `provider: gemini|ollama|dayflow|chat_cli|unknown`
+  - props: `provider: gemini|ollama|unknown`
   - file: App/AppDelegate.swift
 - llm_api_call (sampled ~10%)
   - props: `provider: string`, `model: string`, `latency_ms_bucket: <500ms|0.5-1.5s|>=1.5s`, `outcome: success|error`, `error_code?: int`

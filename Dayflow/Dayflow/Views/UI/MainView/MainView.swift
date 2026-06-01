@@ -5,12 +5,11 @@
 //  Timeline UI with transparent design
 //
 
-import AVFoundation
+import SwiftUI
 import AVKit
+import AVFoundation
 import AppKit
 import Foundation
-import Sentry
-import SwiftUI
 
 struct MainView: View {
   @EnvironmentObject var appState: AppState
@@ -36,14 +35,14 @@ struct MainView: View {
   @ObservedObject var inactivity = InactivityMonitor.shared
   @ObservedObject var pauseManager = PauseManager.shared
 
-  // Animation states for orchestrated entrance - Emil Kowalski principles
-  @State var logoScale: CGFloat = 0.8
-  @State var logoOpacity: Double = 0
-  @State var timelineOffset: CGFloat = -20
-  @State var timelineOpacity: Double = 0
-  @State var sidebarOffset: CGFloat = -30
-  @State var sidebarOpacity: Double = 0
-  @State var contentOpacity: Double = 0
+    // Animation states for orchestrated entrance - Emil Kowalski principles
+    @State var logoScale: CGFloat = 0.8
+    @State var logoOpacity: Double = 0
+    @State var timelineOffset: CGFloat = -20
+    @State var timelineOpacity: Double = 0
+    @State var sidebarOffset: CGFloat = -30
+    @State var sidebarOpacity: Double = 0
+    @State var contentOpacity: Double = 0
 
   // Hero animation for video expansion (Emil Kowalski: shared element transitions)
   @Namespace var videoHeroNamespace
@@ -91,6 +90,13 @@ struct MainView: View {
   var rateSummaryFooterInset: CGFloat {
     selectedActivity == nil ? 0 : rateSummaryFooterHeight
   }
+
+  static let maxDateTitleWidth: CGFloat = {
+    let referenceText = "Today, Sep 30"
+    let font = NSFont(name: "InstrumentSerif-Regular", size: 36) ?? NSFont.systemFont(ofSize: 36)
+    let width = referenceText.size(withAttributes: [.font: font]).width
+    return ceil(width) + 4  // small buffer so arrows never nudge
+  }()
   let iso8601Formatter: ISO8601DateFormatter = {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

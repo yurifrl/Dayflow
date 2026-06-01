@@ -133,6 +133,19 @@ extension DailyView {
           .foregroundStyle(Color(hex: "B46531"))
 
         Spacer()
+
+        // Fork: watch a slideshow of the day's screenshots.
+        Button(action: openDayRecording) {
+          HStack(spacing: 4 * scale) {
+            Image(systemName: "play.circle")
+              .font(.system(size: 13 * scale))
+            Text("Watch")
+              .font(.custom("Nunito-SemiBold", size: 12 * scale))
+          }
+          .foregroundStyle(Color(hex: "B46531").opacity(0.85))
+        }
+        .buttonStyle(.plain)
+        .help("Watch a playback of your screenshots for this day")
       }
 
       VStack(spacing: 0) {

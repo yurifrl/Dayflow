@@ -1,6 +1,5 @@
-import AppKit
-import Sentry
 import SwiftUI
+import AppKit
 
 private struct TimelineHeaderTrailingWidthPreferenceKey: PreferenceKey {
   static var defaultValue: CGFloat = 0
@@ -541,8 +540,13 @@ extension MainView {
       case .weekly:
         WeeklyView()
       case .journal:
-        JournalView()
-          .padding(15)
+        JournalView(
+          selectedDate: $selectedDate,
+          showDatePicker: $showDatePicker,
+          lastDateNavMethod: $lastDateNavMethod,
+          previousDate: $previousDate
+        )
+        .padding(15)
       case .bug:
         BugReportView()
           .padding(15)
