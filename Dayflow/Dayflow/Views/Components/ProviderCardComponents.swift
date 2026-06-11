@@ -28,247 +28,247 @@ struct FlexibleProviderCard: View {
 
   private let isComingSoon: Bool
 
-  init(
-    id: String,
-    title: String,
-    badgeText: String,
-    badgeType: BadgeType,
-    icon: String,
-    features: [(text: String, isAvailable: Bool)],
-    isSelected: Bool,
-    buttonMode: ProviderCardButtonMode,
-    showCurrentlySelected: Bool = false,
-    customStatusText: String? = nil,
-    onSelect: (() -> Void)? = nil
-  ) {
-    self.id = id
-    self.title = title
-    self.badgeText = badgeText
-    self.badgeType = badgeType
-    self.icon = icon
-    self.features = features
-    self.isSelected = isSelected
-    self.buttonMode = buttonMode
-    self.showCurrentlySelected = showCurrentlySelected
-    self.customStatusText = customStatusText
-    self.onSelect = onSelect
-    self.isComingSoon = id == "dayflow"
-  }
-
-  var body: some View {
-    VStack(spacing: 0) {
-      // Header content
-      VStack(alignment: .leading, spacing: 0) {
-        iconSection
-        titleSection
-        badgeSection
-        if showCurrentlySelected {
-          statusIndicator
+    init(
+        id: String,
+        title: String,
+        badgeText: String,
+        badgeType: BadgeType,
+        icon: String,
+        features: [(text: String, isAvailable: Bool)],
+        isSelected: Bool,
+        buttonMode: ProviderCardButtonMode,
+        showCurrentlySelected: Bool = false,
+        customStatusText: String? = nil,
+        onSelect: (() -> Void)? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.badgeText = badgeText
+        self.badgeType = badgeType
+        self.icon = icon
+        self.features = features
+        self.isSelected = isSelected
+        self.buttonMode = buttonMode
+        self.showCurrentlySelected = showCurrentlySelected
+        self.customStatusText = customStatusText
+        self.onSelect = onSelect
+        self.isComingSoon = false
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header content
+            VStack(alignment: .leading, spacing: 0) {
+                iconSection
+                titleSection
+                badgeSection
+                if showCurrentlySelected {
+                    statusIndicator
+                }
+                featuresScroll
+            }
+            
+            // Button at bottom
+            actionButton
         }
-        featuresScroll
-      }
-
-      // Button at bottom
-      actionButton
+        .frame(maxWidth: .infinity)
+        .background(cardBackground)
+        .cornerRadius(4)
+        .overlay(cardOverlay)
+        .modifier(CardShadowModifier(isSelected: isSelected))
+        .animation(.spring(response: 0.3, dampingFraction: 0.9), value: isSelected)
+        .contentShape(RoundedRectangle(cornerRadius: 4))
+        .allowsHitTesting(shouldAllowHitTesting)
+        .pointingHandCursor(enabled: shouldShowPointer)
+        .onTapGesture { handleCardTap() }
     }
-    .frame(maxWidth: .infinity)
-    .background(cardBackground)
-    .cornerRadius(4)
-    .overlay(cardOverlay)
-    .modifier(CardShadowModifier(isSelected: isSelected))
-    .animation(.spring(response: 0.3, dampingFraction: 0.9), value: isSelected)
-    .contentShape(RoundedRectangle(cornerRadius: 4))
-    .allowsHitTesting(shouldAllowHitTesting)
-    .pointingHandCursor(enabled: shouldShowPointer)
-    .onTapGesture { handleCardTap() }
-  }
-
-  private var shouldAllowHitTesting: Bool {
-    switch buttonMode {
-    case .onboarding:
-      return !isComingSoon
-    case .settings:
-      return true
-    }
-  }
-
-  private var shouldShowPointer: Bool {
-    switch buttonMode {
-    case .onboarding:
-      // Show pointer cursor for selectable cards
-      return !isComingSoon && !isSelected
-    case .settings:
-      return false
-    }
-  }
-
-  private func handleCardTap() {
-    switch buttonMode {
-    case .onboarding:
-      // In onboarding, clicking the card selects it
-      if !isComingSoon && !isSelected {
-        onSelect?()
-      }
-    case .settings:
-      break  // No tap action in settings mode
-    }
-  }
-
-  private var iconSection: some View {
-    HStack {
-      Spacer()
-      ProviderIconView(icon: icon)
-      Spacer()
-    }
-    .padding(.top, 24)
-    .padding(.bottom, 16)
-  }
-
-  private var titleSection: some View {
-    HStack {
-      Spacer()
-      Text(title)
-        .font(.custom("Figtree", size: 18))
-        .fontWeight(.semibold)
-        .foregroundColor(.black.opacity(0.9))
-        .lineLimit(2)
-        .truncationMode(.tail)
-      Spacer()
-    }
-    .padding(.bottom, 8)
-  }
-
-  private var badgeSection: some View {
-    HStack {
-      Spacer()
-      BadgeView(text: badgeText, type: badgeType)
-      Spacer()
-    }
-    .padding(.bottom, showCurrentlySelected ? 12 : 24)
-  }
-
-  private var statusIndicator: some View {
-    HStack {
-      Spacer()
-      if isSelected {
-        HStack(spacing: 4) {
-          Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 12))
-            .foregroundColor(.green)
-          Text(customStatusText ?? "Currently selected")
-            .font(.custom("Figtree", size: 12))
-            .fontWeight(.medium)
-            .foregroundColor(.black.opacity(0.6))
+    
+    private var shouldAllowHitTesting: Bool {
+        switch buttonMode {
+        case .onboarding:
+            return !isComingSoon
+        case .settings:
+            return true
         }
-      }
-      Spacer()
     }
-    .frame(height: 20)
-    .padding(.bottom, 8)
-  }
-
-  private var featuresScroll: some View {
-    ScrollView(.vertical, showsIndicators: false) {
-      VStack(alignment: .leading, spacing: 10) {
-        ForEach(Array(features.enumerated()), id: \.offset) { _, feature in
-          FeatureRowView(feature: feature)
+    
+    private var shouldShowPointer: Bool {
+        switch buttonMode {
+        case .onboarding:
+            // Show pointer cursor for selectable cards
+            return !isComingSoon && !isSelected
+        case .settings:
+            return false
         }
-      }
-      .padding(.horizontal, 24)
-      .padding(.bottom, 8)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-
-  private var actionButton: some View {
-    DayflowSurfaceButton(
-      action: buttonAction,
-      content: {
-        Text(buttonTitle)
-          .font(.custom("Figtree", size: 14))
-          .fontWeight(.semibold)
-          .foregroundColor(buttonForegroundColor)
-          .frame(maxWidth: .infinity)
-      },
-      background: buttonBackgroundColor,
-      foreground: buttonForegroundColor,
-      borderColor: .clear,
-      cornerRadius: 8,
-      horizontalPadding: 24,
-      verticalPadding: 12,
-      minWidth: nil,
-      showOverlayStroke: true
-    )
-    .disabled(isButtonDisabled)
-    .opacity(isComingSoon ? 0.4 : 1.0)
-    .frame(maxWidth: .infinity)
-    .padding(.horizontal, 24)
-    .padding(.bottom, 24)
-    .frame(height: 60, alignment: .center)
-  }
-
-  private var buttonAction: () -> Void {
-    switch buttonMode {
-    case .onboarding(let onProceed):
-      return { if !isComingSoon { onProceed() } }
-    case .settings(let onSwitch):
-      return { if !isComingSoon { onSwitch() } }  // Removed !isSelected check - allow editing
+    
+    private func handleCardTap() {
+        switch buttonMode {
+        case .onboarding:
+            // In onboarding, clicking the card selects it
+            if !isComingSoon && !isSelected {
+                onSelect?()
+            }
+        case .settings:
+            break // No tap action in settings mode
+        }
     }
-  }
-
-  private var buttonTitle: String {
-    if isComingSoon {
-      return "Coming Soon"
+    
+    private var iconSection: some View {
+        HStack {
+            Spacer()
+            ProviderIconView(icon: icon)
+            Spacer()
+        }
+        .padding(.top, 24)
+        .padding(.bottom, 16)
     }
-
-    switch buttonMode {
-    case .onboarding:
-      return "Proceed"
-    case .settings:
-      return isSelected ? "Edit Configuration" : "Switch"
+    
+    private var titleSection: some View {
+        HStack {
+            Spacer()
+            Text(title)
+                .font(.custom("Nunito", size: 18))
+                .fontWeight(.semibold)
+                .foregroundColor(.black.opacity(0.9))
+                .lineLimit(2)
+                .truncationMode(.tail)
+            Spacer()
+        }
+        .padding(.bottom, 8)
     }
-  }
-
-  private var isButtonDisabled: Bool {
-    if isComingSoon {
-      return true
+    
+    private var badgeSection: some View {
+        HStack {
+            Spacer()
+            BadgeView(text: badgeText, type: badgeType)
+            Spacer()
+        }
+        .padding(.bottom, showCurrentlySelected ? 12 : 24)
     }
-
-    switch buttonMode {
-    case .onboarding:
-      return false
-    case .settings:
-      return false  // Always enabled - allows editing when selected
+    
+    private var statusIndicator: some View {
+        HStack {
+            Spacer()
+            if isSelected {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.green)
+                    Text(customStatusText ?? "Currently selected")
+                        .font(.custom("Nunito", size: 12))
+                        .fontWeight(.medium)
+                        .foregroundColor(.black.opacity(0.6))
+                }
+            }
+            Spacer()
+        }
+        .frame(height: 20)
+        .padding(.bottom, 8)
     }
-  }
-
-  private var buttonForegroundColor: Color {
-    return .white
-  }
-
-  private var buttonBackgroundColor: Color {
-    return Color(red: 0.25, green: 0.17, blue: 0)
-  }
-
-  @ViewBuilder
-  private var cardBackground: some View {
-    if isSelected {
-      SelectedCardBackground()
-    } else {
-      Color.white.opacity(0.3)
+    
+    private var featuresScroll: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(features.enumerated()), id: \.offset) { _, feature in
+                    FeatureRowView(feature: feature)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-  }
-
-  @ViewBuilder
-  private var cardOverlay: some View {
-    if isSelected {
-      SelectedCardOverlay()
-    } else {
-      RoundedRectangle(cornerRadius: 4)
-        .inset(by: 0.5)
-        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+    
+    private var actionButton: some View {
+        DayflowSurfaceButton(
+            action: buttonAction,
+            content: {
+                Text(buttonTitle)
+                    .font(.custom("Nunito", size: 14))
+                    .fontWeight(.semibold)
+                    .foregroundColor(buttonForegroundColor)
+                    .frame(maxWidth: .infinity)
+            },
+            background: buttonBackgroundColor,
+            foreground: buttonForegroundColor,
+            borderColor: .clear,
+            cornerRadius: 8,
+            horizontalPadding: 24,
+            verticalPadding: 12,
+            minWidth: nil,
+            showOverlayStroke: true
+        )
+        .disabled(isButtonDisabled)
+        .opacity(isComingSoon ? 0.4 : 1.0)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 24)
+        .frame(height: 60, alignment: .center)
     }
-  }
+    
+    private var buttonAction: () -> Void {
+        switch buttonMode {
+        case .onboarding(let onProceed):
+            return { if !isComingSoon { onProceed() } }
+        case .settings(let onSwitch):
+            return { if !isComingSoon { onSwitch() } }  // Removed !isSelected check - allow editing
+        }
+    }
+    
+    private var buttonTitle: String {
+        if isComingSoon {
+            return "Coming Soon"
+        }
+        
+        switch buttonMode {
+        case .onboarding:
+            return "Proceed"
+        case .settings:
+            return isSelected ? "Edit Configuration" : "Switch"
+        }
+    }
+    
+    private var isButtonDisabled: Bool {
+        if isComingSoon {
+            return true
+        }
+        
+        switch buttonMode {
+        case .onboarding:
+            return false
+        case .settings:
+            return false  // Always enabled - allows editing when selected
+        }
+    }
+    
+    private var buttonForegroundColor: Color {
+        return .white
+    }
+    
+    private var buttonBackgroundColor: Color {
+        return Color(red: 0.25, green: 0.17, blue: 0)
+    }
+    
+    @ViewBuilder
+    private var cardBackground: some View {
+        if isSelected {
+            SelectedCardBackground()
+        } else {
+            Color.white.opacity(0.3)
+        }
+    }
+    
+    @ViewBuilder
+    private var cardOverlay: some View {
+        if isSelected {
+            SelectedCardOverlay()
+        } else {
+            RoundedRectangle(cornerRadius: 4)
+                .inset(by: 0.5)
+                .stroke(Color.black.opacity(0.06), lineWidth: 1)
+        }
+    }
 }
 
 enum BadgeType {
@@ -278,28 +278,19 @@ enum BadgeType {
 struct BadgeView: View {
   let text: String
   let type: BadgeType
-  let scale: CGFloat
-  let fontScale: CGFloat
-
-  init(text: String, type: BadgeType, scale: CGFloat = 1, fontScale: CGFloat = 1) {
-    self.text = text
-    self.type = type
-    self.scale = scale
-    self.fontScale = fontScale
-  }
 
   var body: some View {
-    HStack(spacing: 4 * scale) {
+    HStack(spacing: 4) {
       Text(text)
-        .font(Font.custom("Figtree", size: 10 * scale * fontScale).weight(textWeight))
-        .kerning(kerningValue * scale * fontScale)
+        .font(Font.custom("Nunito", size: 10).weight(textWeight))
+        .kerning(kerningValue)
         .foregroundColor(textColor)
     }
-    .padding(.horizontal, 8 * scale)
-    .padding(.vertical, 4 * scale)
+    .padding(.horizontal, 8)
+    .padding(.vertical, 4)
     .background(badgeBackground)
-    .cornerRadius(2 * scale)
-    .modifier(BadgeShadowModifier(shadowColor: shadowColor, scale: scale))
+    .cornerRadius(2)
+    .modifier(BadgeShadowModifier(shadowColor: shadowColor))
     .overlay(badgeOverlay)
   }
 
@@ -395,76 +386,36 @@ struct BadgeView: View {
 
 struct BadgeShadowModifier: ViewModifier {
   let shadowColor: Color
-  let scale: CGFloat
-
-  init(shadowColor: Color, scale: CGFloat = 1) {
-    self.shadowColor = shadowColor
-    self.scale = scale
-  }
 
   func body(content: Content) -> some View {
     content
-      .shadow(color: shadowColor.opacity(0.14), radius: 1.5 * scale, x: 0, y: 1 * scale)
-      .shadow(
-        color: shadowColor.opacity(0.12),
-        radius: 2.5 * scale,
-        x: 2 * scale,
-        y: 4 * scale
-      )
-      .shadow(
-        color: shadowColor.opacity(0.07),
-        radius: 3 * scale,
-        x: 4 * scale,
-        y: 10 * scale
-      )
-      .shadow(
-        color: shadowColor.opacity(0.02),
-        radius: 3.5 * scale,
-        x: 7 * scale,
-        y: 17 * scale
-      )
-      .shadow(
-        color: shadowColor.opacity(0),
-        radius: 4 * scale,
-        x: 10 * scale,
-        y: 27 * scale
-      )
+      .shadow(color: shadowColor.opacity(0.14), radius: 1.5, x: 0, y: 1)
+      .shadow(color: shadowColor.opacity(0.12), radius: 2.5, x: 2, y: 4)
+      .shadow(color: shadowColor.opacity(0.07), radius: 3, x: 4, y: 10)
+      .shadow(color: shadowColor.opacity(0.02), radius: 3.5, x: 7, y: 17)
+      .shadow(color: shadowColor.opacity(0), radius: 4, x: 10, y: 27)
   }
 }
 
 struct ProviderIconView: View {
   let icon: String
-  let scale: CGFloat
-
-  init(icon: String, scale: CGFloat = 1) {
-    self.icon = icon
-    self.scale = scale
-  }
 
   var body: some View {
     iconContent
-      .frame(width: containerWidth, height: 40 * scale)
+      .frame(width: containerWidth, height: 40)
   }
 
   private var containerWidth: CGFloat {
-    (icon == "chatgpt_claude_asset" ? 104 : 40) * scale
+    icon == "chatgpt_claude_asset" ? 104 : 40
   }
 
   @ViewBuilder
   private var iconContent: some View {
     switch icon {
-    case "dayflow_asset":
-      Image("DayflowLogo")
-        .resizable()
-        .renderingMode(.original)
-        .interpolation(.high)
-        .antialiased(true)
-        .scaledToFit()
-        .frame(width: 40 * scale, height: 40 * scale)
     case "gemini_asset":
       logoBox(name: "GeminiLogo")
     case "chatgpt_claude_asset":
-      HStack(spacing: 8 * scale) {
+      HStack(spacing: 8) {
         logoBox(name: "ChatGPTLogo")
         logoBox(name: "ClaudeLogo")
       }
@@ -481,61 +432,48 @@ struct ProviderIconView: View {
       .interpolation(.high)
       .antialiased(true)
       .scaledToFit()
-      .frame(width: 28 * scale, height: 28 * scale)
-      .padding(6 * scale)
+      .frame(width: 28, height: 28)
+      .padding(6)
       .background(.white.opacity(0.9))
-      .cornerRadius(6 * scale)
-      .shadow(color: Color.black.opacity(0.05), radius: 2 * scale, x: 0, y: 2 * scale)
+      .cornerRadius(6)
+      .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
       .overlay(
-        RoundedRectangle(cornerRadius: 6 * scale)
-          .stroke(Color.black.opacity(0.05), lineWidth: 0.5 * scale)
+        RoundedRectangle(cornerRadius: 6)
+          .stroke(Color.black.opacity(0.05), lineWidth: 0.5)
       )
   }
 
   @ViewBuilder
   private func logoBox(systemName: String) -> some View {
     Image(systemName: systemName)
-      .font(.system(size: 20 * scale, weight: .medium))
+      .font(.system(size: 20, weight: .medium))
       .foregroundColor(.black.opacity(0.7))
-      .frame(width: 40 * scale, height: 40 * scale)
+      .frame(width: 40, height: 40)
       .background(.white.opacity(0.6))
-      .cornerRadius(3 * scale)
-      .shadow(
-        color: Color(red: 0.92, green: 0.91, blue: 0.91),
-        radius: 1 * scale,
-        x: -1 * scale,
-        y: 2 * scale
-      )
+      .cornerRadius(3)
+      .shadow(color: Color(red: 0.92, green: 0.91, blue: 0.91), radius: 1, x: -1, y: 2)
       .overlay(
-        RoundedRectangle(cornerRadius: 3 * scale)
+        RoundedRectangle(cornerRadius: 3)
           .inset(by: 0.23)
-          .stroke(.white.opacity(0.87), lineWidth: 0.46508 * scale)
+          .stroke(.white.opacity(0.87), lineWidth: 0.46508)
       )
   }
 }
 
 struct FeatureRowView: View {
   let feature: (text: String, isAvailable: Bool)
-  let scale: CGFloat
-  let fontScale: CGFloat
-
-  init(feature: (text: String, isAvailable: Bool), scale: CGFloat = 1, fontScale: CGFloat = 1) {
-    self.feature = feature
-    self.scale = scale
-    self.fontScale = fontScale
-  }
 
   var body: some View {
-    HStack(alignment: .center, spacing: 8 * scale) {
+    HStack(alignment: .center, spacing: 8) {
       Image(systemName: feature.isAvailable ? "checkmark" : "xmark")
-        .font(.system(size: 12 * scale, weight: .bold))
+        .font(.system(size: 12, weight: .bold))
         .foregroundColor(
           feature.isAvailable ? Color(red: 0.34, green: 1, blue: 0.45) : Color(hex: "E91515")
         )
-        .frame(width: 16 * scale)
+        .frame(width: 16)
 
       Text(feature.text)
-        .font(.custom("Figtree", size: 14 * scale * fontScale))
+        .font(.custom("Nunito", size: 14))
         .foregroundColor(.black.opacity(0.75))
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
