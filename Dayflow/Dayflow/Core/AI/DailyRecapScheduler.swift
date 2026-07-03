@@ -15,9 +15,6 @@ final class DailyRecapScheduler: @unchecked Sendable {
   private let checkInterval: TimeInterval = 5 * 60
   private let bootstrapBackfillWindowDays = 7
   private let priorStandupHistoryLimit = 3
-  private let dayflowBackendDefaultEndpoint = "https://web-production-f3361.up.railway.app"
-  private let dayflowBackendInfoPlistKey = "DayflowBackendURL"
-  private let dayflowBackendOverrideDefaultsKey = "dayflowBackendURLOverride"
 
   private init() {}
 
@@ -127,12 +124,6 @@ final class DailyRecapScheduler: @unchecked Sendable {
     let priorDailyText = Self.makePriorDailyText(entries: priorEntries)
     let preferencesText = Self.makeDefaultPreferencesText()
 
-    let token = AnalyticsService.shared.backendAuthToken().trimmingCharacters(
-      in: .whitespacesAndNewlines)
-    guard !token.isEmpty else {
-      return
-    }
-
     AnalyticsService.shared.capture(
       "daily_auto_generation_check_started",
       [
@@ -154,12 +145,7 @@ final class DailyRecapScheduler: @unchecked Sendable {
         "preferences_text_chars": preferencesText.count,
       ])
 
-    let endpoint = Self.resolvedDayflowEndpoint(
-      defaultEndpoint: dayflowBackendDefaultEndpoint,
-      infoPlistKey: dayflowBackendInfoPlistKey,
-      overrideDefaultsKey: dayflowBackendOverrideDefaultsKey
-    )
-    let provider = DayflowBackendProvider(token: token, endpoint: endpoint)
+    let provider = DayflowBackendProvider()
     let request = DayflowDailyGenerationRequest(
       day: recapDay,
       cardsText: cardsText,
@@ -281,37 +267,6 @@ final class DailyRecapScheduler: @unchecked Sendable {
     }
 
     return nil
-  }
-
-  private static func resolvedDayflowEndpoint(
-    defaultEndpoint: String,
-    infoPlistKey: String,
-    overrideDefaultsKey: String
-  ) -> String {
-    let defaults = UserDefaults.standard
-
-    if let override = defaults.string(forKey: overrideDefaultsKey)?
-      .trimmingCharacters(in: .whitespacesAndNewlines),
-      !override.isEmpty
-    {
-      return override
-    }
-
-    if let infoEndpoint = Bundle.main.infoDictionary?[infoPlistKey] as? String {
-      let trimmed = infoEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        return trimmed
-      }
-    }
-
-    if case .dayflowBackend(let savedEndpoint) = LLMProviderType.load(from: defaults) {
-      let trimmed = savedEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        return trimmed
-      }
-    }
-
-    return defaultEndpoint
   }
 
   private static func makeCardsText(day: String, cards: [TimelineCard]) -> String {

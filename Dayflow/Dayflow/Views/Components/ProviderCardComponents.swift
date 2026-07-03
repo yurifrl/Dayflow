@@ -28,247 +28,247 @@ struct FlexibleProviderCard: View {
 
   private let isComingSoon: Bool
 
-  init(
-    id: String,
-    title: String,
-    badgeText: String,
-    badgeType: BadgeType,
-    icon: String,
-    features: [(text: String, isAvailable: Bool)],
-    isSelected: Bool,
-    buttonMode: ProviderCardButtonMode,
-    showCurrentlySelected: Bool = false,
-    customStatusText: String? = nil,
-    onSelect: (() -> Void)? = nil
-  ) {
-    self.id = id
-    self.title = title
-    self.badgeText = badgeText
-    self.badgeType = badgeType
-    self.icon = icon
-    self.features = features
-    self.isSelected = isSelected
-    self.buttonMode = buttonMode
-    self.showCurrentlySelected = showCurrentlySelected
-    self.customStatusText = customStatusText
-    self.onSelect = onSelect
-    self.isComingSoon = id == "dayflow"
-  }
-
-  var body: some View {
-    VStack(spacing: 0) {
-      // Header content
-      VStack(alignment: .leading, spacing: 0) {
-        iconSection
-        titleSection
-        badgeSection
-        if showCurrentlySelected {
-          statusIndicator
+    init(
+        id: String,
+        title: String,
+        badgeText: String,
+        badgeType: BadgeType,
+        icon: String,
+        features: [(text: String, isAvailable: Bool)],
+        isSelected: Bool,
+        buttonMode: ProviderCardButtonMode,
+        showCurrentlySelected: Bool = false,
+        customStatusText: String? = nil,
+        onSelect: (() -> Void)? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.badgeText = badgeText
+        self.badgeType = badgeType
+        self.icon = icon
+        self.features = features
+        self.isSelected = isSelected
+        self.buttonMode = buttonMode
+        self.showCurrentlySelected = showCurrentlySelected
+        self.customStatusText = customStatusText
+        self.onSelect = onSelect
+        self.isComingSoon = false
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header content
+            VStack(alignment: .leading, spacing: 0) {
+                iconSection
+                titleSection
+                badgeSection
+                if showCurrentlySelected {
+                    statusIndicator
+                }
+                featuresScroll
+            }
+            
+            // Button at bottom
+            actionButton
         }
-        featuresScroll
-      }
-
-      // Button at bottom
-      actionButton
+        .frame(maxWidth: .infinity)
+        .background(cardBackground)
+        .cornerRadius(4)
+        .overlay(cardOverlay)
+        .modifier(CardShadowModifier(isSelected: isSelected))
+        .animation(.spring(response: 0.3, dampingFraction: 0.9), value: isSelected)
+        .contentShape(RoundedRectangle(cornerRadius: 4))
+        .allowsHitTesting(shouldAllowHitTesting)
+        .pointingHandCursor(enabled: shouldShowPointer)
+        .onTapGesture { handleCardTap() }
     }
-    .frame(maxWidth: .infinity)
-    .background(cardBackground)
-    .cornerRadius(4)
-    .overlay(cardOverlay)
-    .modifier(CardShadowModifier(isSelected: isSelected))
-    .animation(.spring(response: 0.3, dampingFraction: 0.9), value: isSelected)
-    .contentShape(RoundedRectangle(cornerRadius: 4))
-    .allowsHitTesting(shouldAllowHitTesting)
-    .pointingHandCursor(enabled: shouldShowPointer)
-    .onTapGesture { handleCardTap() }
-  }
-
-  private var shouldAllowHitTesting: Bool {
-    switch buttonMode {
-    case .onboarding:
-      return !isComingSoon
-    case .settings:
-      return true
-    }
-  }
-
-  private var shouldShowPointer: Bool {
-    switch buttonMode {
-    case .onboarding:
-      // Show pointer cursor for selectable cards
-      return !isComingSoon && !isSelected
-    case .settings:
-      return false
-    }
-  }
-
-  private func handleCardTap() {
-    switch buttonMode {
-    case .onboarding:
-      // In onboarding, clicking the card selects it
-      if !isComingSoon && !isSelected {
-        onSelect?()
-      }
-    case .settings:
-      break  // No tap action in settings mode
-    }
-  }
-
-  private var iconSection: some View {
-    HStack {
-      Spacer()
-      ProviderIconView(icon: icon)
-      Spacer()
-    }
-    .padding(.top, 24)
-    .padding(.bottom, 16)
-  }
-
-  private var titleSection: some View {
-    HStack {
-      Spacer()
-      Text(title)
-        .font(.custom("Nunito", size: 18))
-        .fontWeight(.semibold)
-        .foregroundColor(.black.opacity(0.9))
-        .lineLimit(2)
-        .truncationMode(.tail)
-      Spacer()
-    }
-    .padding(.bottom, 8)
-  }
-
-  private var badgeSection: some View {
-    HStack {
-      Spacer()
-      BadgeView(text: badgeText, type: badgeType)
-      Spacer()
-    }
-    .padding(.bottom, showCurrentlySelected ? 12 : 24)
-  }
-
-  private var statusIndicator: some View {
-    HStack {
-      Spacer()
-      if isSelected {
-        HStack(spacing: 4) {
-          Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 12))
-            .foregroundColor(.green)
-          Text(customStatusText ?? "Currently selected")
-            .font(.custom("Nunito", size: 12))
-            .fontWeight(.medium)
-            .foregroundColor(.black.opacity(0.6))
+    
+    private var shouldAllowHitTesting: Bool {
+        switch buttonMode {
+        case .onboarding:
+            return !isComingSoon
+        case .settings:
+            return true
         }
-      }
-      Spacer()
     }
-    .frame(height: 20)
-    .padding(.bottom, 8)
-  }
-
-  private var featuresScroll: some View {
-    ScrollView(.vertical, showsIndicators: false) {
-      VStack(alignment: .leading, spacing: 10) {
-        ForEach(Array(features.enumerated()), id: \.offset) { _, feature in
-          FeatureRowView(feature: feature)
+    
+    private var shouldShowPointer: Bool {
+        switch buttonMode {
+        case .onboarding:
+            // Show pointer cursor for selectable cards
+            return !isComingSoon && !isSelected
+        case .settings:
+            return false
         }
-      }
-      .padding(.horizontal, 24)
-      .padding(.bottom, 8)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-
-  private var actionButton: some View {
-    DayflowSurfaceButton(
-      action: buttonAction,
-      content: {
-        Text(buttonTitle)
-          .font(.custom("Nunito", size: 14))
-          .fontWeight(.semibold)
-          .foregroundColor(buttonForegroundColor)
-          .frame(maxWidth: .infinity)
-      },
-      background: buttonBackgroundColor,
-      foreground: buttonForegroundColor,
-      borderColor: .clear,
-      cornerRadius: 8,
-      horizontalPadding: 24,
-      verticalPadding: 12,
-      minWidth: nil,
-      showOverlayStroke: true
-    )
-    .disabled(isButtonDisabled)
-    .opacity(isComingSoon ? 0.4 : 1.0)
-    .frame(maxWidth: .infinity)
-    .padding(.horizontal, 24)
-    .padding(.bottom, 24)
-    .frame(height: 60, alignment: .center)
-  }
-
-  private var buttonAction: () -> Void {
-    switch buttonMode {
-    case .onboarding(let onProceed):
-      return { if !isComingSoon { onProceed() } }
-    case .settings(let onSwitch):
-      return { if !isComingSoon { onSwitch() } }  // Removed !isSelected check - allow editing
+    
+    private func handleCardTap() {
+        switch buttonMode {
+        case .onboarding:
+            // In onboarding, clicking the card selects it
+            if !isComingSoon && !isSelected {
+                onSelect?()
+            }
+        case .settings:
+            break // No tap action in settings mode
+        }
     }
-  }
-
-  private var buttonTitle: String {
-    if isComingSoon {
-      return "Coming Soon"
+    
+    private var iconSection: some View {
+        HStack {
+            Spacer()
+            ProviderIconView(icon: icon)
+            Spacer()
+        }
+        .padding(.top, 24)
+        .padding(.bottom, 16)
     }
-
-    switch buttonMode {
-    case .onboarding:
-      return "Proceed"
-    case .settings:
-      return isSelected ? "Edit Configuration" : "Switch"
+    
+    private var titleSection: some View {
+        HStack {
+            Spacer()
+            Text(title)
+                .font(.custom("Nunito", size: 18))
+                .fontWeight(.semibold)
+                .foregroundColor(.black.opacity(0.9))
+                .lineLimit(2)
+                .truncationMode(.tail)
+            Spacer()
+        }
+        .padding(.bottom, 8)
     }
-  }
-
-  private var isButtonDisabled: Bool {
-    if isComingSoon {
-      return true
+    
+    private var badgeSection: some View {
+        HStack {
+            Spacer()
+            BadgeView(text: badgeText, type: badgeType)
+            Spacer()
+        }
+        .padding(.bottom, showCurrentlySelected ? 12 : 24)
     }
-
-    switch buttonMode {
-    case .onboarding:
-      return false
-    case .settings:
-      return false  // Always enabled - allows editing when selected
+    
+    private var statusIndicator: some View {
+        HStack {
+            Spacer()
+            if isSelected {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.green)
+                    Text(customStatusText ?? "Currently selected")
+                        .font(.custom("Nunito", size: 12))
+                        .fontWeight(.medium)
+                        .foregroundColor(.black.opacity(0.6))
+                }
+            }
+            Spacer()
+        }
+        .frame(height: 20)
+        .padding(.bottom, 8)
     }
-  }
-
-  private var buttonForegroundColor: Color {
-    return .white
-  }
-
-  private var buttonBackgroundColor: Color {
-    return Color(red: 0.25, green: 0.17, blue: 0)
-  }
-
-  @ViewBuilder
-  private var cardBackground: some View {
-    if isSelected {
-      SelectedCardBackground()
-    } else {
-      Color.white.opacity(0.3)
+    
+    private var featuresScroll: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(features.enumerated()), id: \.offset) { _, feature in
+                    FeatureRowView(feature: feature)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-  }
-
-  @ViewBuilder
-  private var cardOverlay: some View {
-    if isSelected {
-      SelectedCardOverlay()
-    } else {
-      RoundedRectangle(cornerRadius: 4)
-        .inset(by: 0.5)
-        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+    
+    private var actionButton: some View {
+        DayflowSurfaceButton(
+            action: buttonAction,
+            content: {
+                Text(buttonTitle)
+                    .font(.custom("Nunito", size: 14))
+                    .fontWeight(.semibold)
+                    .foregroundColor(buttonForegroundColor)
+                    .frame(maxWidth: .infinity)
+            },
+            background: buttonBackgroundColor,
+            foreground: buttonForegroundColor,
+            borderColor: .clear,
+            cornerRadius: 8,
+            horizontalPadding: 24,
+            verticalPadding: 12,
+            minWidth: nil,
+            showOverlayStroke: true
+        )
+        .disabled(isButtonDisabled)
+        .opacity(isComingSoon ? 0.4 : 1.0)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 24)
+        .frame(height: 60, alignment: .center)
     }
-  }
+    
+    private var buttonAction: () -> Void {
+        switch buttonMode {
+        case .onboarding(let onProceed):
+            return { if !isComingSoon { onProceed() } }
+        case .settings(let onSwitch):
+            return { if !isComingSoon { onSwitch() } }  // Removed !isSelected check - allow editing
+        }
+    }
+    
+    private var buttonTitle: String {
+        if isComingSoon {
+            return "Coming Soon"
+        }
+        
+        switch buttonMode {
+        case .onboarding:
+            return "Proceed"
+        case .settings:
+            return isSelected ? "Edit Configuration" : "Switch"
+        }
+    }
+    
+    private var isButtonDisabled: Bool {
+        if isComingSoon {
+            return true
+        }
+        
+        switch buttonMode {
+        case .onboarding:
+            return false
+        case .settings:
+            return false  // Always enabled - allows editing when selected
+        }
+    }
+    
+    private var buttonForegroundColor: Color {
+        return .white
+    }
+    
+    private var buttonBackgroundColor: Color {
+        return Color(red: 0.25, green: 0.17, blue: 0)
+    }
+    
+    @ViewBuilder
+    private var cardBackground: some View {
+        if isSelected {
+            SelectedCardBackground()
+        } else {
+            Color.white.opacity(0.3)
+        }
+    }
+    
+    @ViewBuilder
+    private var cardOverlay: some View {
+        if isSelected {
+            SelectedCardOverlay()
+        } else {
+            RoundedRectangle(cornerRadius: 4)
+                .inset(by: 0.5)
+                .stroke(Color.black.opacity(0.06), lineWidth: 1)
+        }
+    }
 }
 
 enum BadgeType {

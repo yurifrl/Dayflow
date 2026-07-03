@@ -47,7 +47,7 @@ private struct DailyStandupSectionTitles {
 }
 
 struct DailyView: View {
-  @AppStorage("isDailyUnlocked") private var isUnlocked: Bool = false
+  @AppStorage("isDailyUnlocked") private var isUnlocked: Bool = true
   @Binding var selectedDate: Date
   @EnvironmentObject private var categoryStore: CategoryStore
   @Environment(\.openURL) private var openURL
@@ -68,7 +68,12 @@ struct DailyView: View {
   @State private var standupRegenerateTask: Task<Void, Never>? = nil
   @State private var standupRegenerateResetTask: Task<Void, Never>? = nil
   @State private var standupRegeneratingDotsPhase: Int = 1
+  @State private var standupRegenerateError: String? = nil
+  @State private var standupRegenerateErrorResetTask: Task<Void, Never>? = nil
   @State private var hasPersistedStandupEntry: Bool = false
+  @State private var showDayRecording: Bool = false
+  @State private var dayRecordingScreenshots: [Screenshot] = []
+  @State private var dayRecordingLoadTask: Task<Void, Never>? = nil
 
   private let requiredCodeHash = "6979ce2825cb3f440f987bbc487d62087c333abb99b56062c561ca557392d960"
   private let betaNoticeCopy =
@@ -99,6 +104,16 @@ struct DailyView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     .environment(\.colorScheme, .light)
+    .sheet(isPresented: $showDayRecording) {
+      if !dayRecordingScreenshots.isEmpty {
+        ScreenshotSlideshowModal(
+          screenshots: dayRecordingScreenshots,
+          title: dailyDateTitle(for: selectedDate),
+          startTime: nil,
+          endTime: nil
+        )
+      }
+    }
   }
 
   private var lockScreen: some View {
@@ -285,6 +300,10 @@ struct DailyView: View {
       standupRegenerateTask = nil
       standupRegenerateResetTask?.cancel()
       standupRegenerateResetTask = nil
+      standupRegenerateState = .idle
+      standupRegenerateError = nil
+      standupRegenerateErrorResetTask?.cancel()
+      standupRegenerateErrorResetTask = nil
       standupRegeneratingDotsPhase = 1
     }
     .onChange(of: selectedDate) { _, _ in
@@ -408,6 +427,19 @@ struct DailyView: View {
           .foregroundStyle(Color(hex: "B46531"))
 
         Spacer()
+
+        // Watch recordings button
+        Button(action: openDayRecording) {
+          HStack(spacing: 4 * scale) {
+            Image(systemName: "play.circle")
+              .font(.system(size: 13 * scale))
+            Text("Watch")
+              .font(.custom("Nunito-SemiBold", size: 12 * scale))
+          }
+          .foregroundStyle(Color(hex: "B46531").opacity(0.85))
+        }
+        .buttonStyle(.plain)
+        .help("Watch a playback of your screenshots for this day")
       }
 
       VStack(spacing: 0) {
@@ -478,11 +510,21 @@ struct DailyView: View {
       }
     }
 
-    HStack {
-      // TODO: Bring back the Highlights/Details toggle when Details mode is ready.
-      Spacer(minLength: 0)
-      actionButtons
+    VStack(alignment: .trailing, spacing: 6 * scale) {
+      HStack {
+        // TODO: Bring back the Highlights/Details toggle when Details mode is ready.
+        Spacer(minLength: 0)
+        actionButtons
+      }
+
+      if let error = standupRegenerateError {
+        Text(error)
+          .font(.custom("Nunito", size: 12 * scale))
+          .foregroundColor(Color(hex: "E91515"))
+          .transition(.opacity.combined(with: .move(edge: .top)))
+      }
     }
+    .animation(.easeInOut(duration: 0.25), value: standupRegenerateError)
   }
 
   private func standupCopyButton(scale: CGFloat) -> some View {
@@ -677,6 +719,25 @@ struct DailyView: View {
     }
   }
 
+  private func openDayRecording() {
+    let timelineDate = timelineDisplayDate(from: selectedDate)
+    let dayInfo = timelineDate.getDayInfoFor4AMBoundary()
+    let startTs = Int(dayInfo.startOfDay.timeIntervalSince1970)
+    let endTs = Int(dayInfo.endOfDay.timeIntervalSince1970)
+
+    dayRecordingLoadTask?.cancel()
+    dayRecordingLoadTask = Task.detached(priority: .userInitiated) {
+      let shots = StorageManager.shared.fetchScreenshotsInTimeRange(startTs: startTs, endTs: endTs)
+      await MainActor.run {
+        dayRecordingScreenshots = shots
+        if !shots.isEmpty {
+          showDayRecording = true
+        }
+        dayRecordingLoadTask = nil
+      }
+    }
+  }
+
   private func refreshWorkflowData() {
     workflowLoadTask?.cancel()
     workflowLoadTask = nil
@@ -777,6 +838,8 @@ struct DailyView: View {
         await MainActor.run {
           standupRegenerateState = .idle
           standupRegenerateTask = nil
+          standupRegenerateError = "No timeline data for this day"
+          scheduleRegenerateErrorReset()
           AnalyticsService.shared.capture(
             "daily_generation_failed",
             [
@@ -832,6 +895,8 @@ struct DailyView: View {
         await MainActor.run {
           standupRegenerateState = .idle
           standupRegenerateTask = nil
+          standupRegenerateError = "Gemini API key required — check Settings → Providers"
+          scheduleRegenerateErrorReset()
           AnalyticsService.shared.capture(
             "daily_generation_failed",
             [
@@ -876,6 +941,8 @@ struct DailyView: View {
           await MainActor.run {
             standupRegenerateState = .idle
             standupRegenerateTask = nil
+            standupRegenerateError = "Failed to process response"
+            scheduleRegenerateErrorReset()
             AnalyticsService.shared.capture(
               "daily_generation_failed",
               [
@@ -944,6 +1011,10 @@ struct DailyView: View {
         await MainActor.run {
           standupRegenerateState = .idle
           standupRegenerateTask = nil
+          standupRegenerateError = nsError.localizedDescription.isEmpty
+            ? "Generation failed — try again"
+            : nsError.localizedDescription
+          scheduleRegenerateErrorReset()
           AnalyticsService.shared.capture(
             "daily_generation_failed",
             [
@@ -955,6 +1026,20 @@ struct DailyView: View {
               "error_message": String(nsError.localizedDescription.prefix(500)),
             ])
         }
+      }
+    }
+  }
+
+  private func scheduleRegenerateErrorReset() {
+    standupRegenerateErrorResetTask?.cancel()
+    standupRegenerateErrorResetTask = Task {
+      try? await Task.sleep(nanoseconds: 4_000_000_000)
+      guard !Task.isCancelled else { return }
+      await MainActor.run {
+        withAnimation(.easeOut(duration: 0.3)) {
+          standupRegenerateError = nil
+        }
+        standupRegenerateErrorResetTask = nil
       }
     }
   }
@@ -1046,26 +1131,8 @@ struct DailyView: View {
     overrideDefaultsKey: String,
     debugRunId: String
   ) -> DayflowBackendProvider? {
-    let token = AnalyticsService.shared.backendAuthToken()
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !token.isEmpty else {
-      print(
-        "[Daily] Provider resolve failed run_id=\(debugRunId) reason=empty_backend_auth_token"
-      )
-      return nil
-    }
-    print(
-      "[Daily] Provider auth token run_id=\(debugRunId) id=\(token) length=\(token.count)"
-    )
-
-    let endpoint = resolvedDayflowEndpoint(
-      defaultEndpoint: defaultEndpoint,
-      infoPlistKey: infoPlistKey,
-      overrideDefaultsKey: overrideDefaultsKey,
-      debugRunId: debugRunId
-    )
-    print("[Daily] Provider endpoint run_id=\(debugRunId) endpoint=\(endpoint)")
-    return DayflowBackendProvider(token: token, endpoint: endpoint)
+    print("[Daily] Creating local Gemini provider run_id=\(debugRunId)")
+    return DayflowBackendProvider()
   }
 
   nonisolated private static func resolvedDayflowEndpoint(
@@ -1091,16 +1158,6 @@ struct DailyView: View {
       if !trimmed.isEmpty {
         print(
           "[Daily] Endpoint resolved run_id=\(debugRunId) source=info_plist value=\(trimmed)"
-        )
-        return trimmed
-      }
-    }
-
-    if case .dayflowBackend(let savedEndpoint) = LLMProviderType.load(from: defaults) {
-      let trimmed = savedEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        print(
-          "[Daily] Endpoint resolved run_id=\(debugRunId) source=provider_settings value=\(trimmed)"
         )
         return trimmed
       }
