@@ -2,92 +2,54 @@
 //  SentryHelper.swift
 //  Dayflow
 //
-//  Safe wrapper for Sentry SDK calls.
-//  Prevents errors when Sentry is not initialized (e.g., DSN not configured).
+//  No-op stub: Sentry is disabled in this build.
 //
 
 import Foundation
-import Sentry
 
-/// Thread-safe wrapper for Sentry SDK calls that gracefully handles uninitialized state.
+// MARK: - Sentry type stubs (no-op)
+
+/// No-op replacement for Sentry's Breadcrumb type.
+final class Breadcrumb {
+    enum SentryLevel { case debug, info, warning, error, fatal }
+    var message: String?
+    var data: [String: Any]?
+    var type: String?
+    init(level: SentryLevel = .info, category: String) {}
+}
+
+/// No-op replacement for Sentry's Scope type.
+final class Scope {
+    func setContext(value: [String: Any], key: String) {}
+}
+
+/// No-op stub replacing Sentry integration. All calls are silently ignored.
 final class SentryHelper {
-  /// Tracks whether Sentry SDK has been successfully initialized.
-  /// Managed through `setEnabled(_:)` / `startIfConfigured()`.
-  private static let _isEnabled = NSLock()
-  private static var _value = false
+    static var isEnabled: Bool = false
+    static func setEnabled(_ enabled: Bool) {}
+    static func addBreadcrumb(_ breadcrumb: Breadcrumb) {}
+    static func configureScope(_ configure: @escaping (Scope) -> Void) {}
+    static func startTransaction(name: String, operation: String) -> SpanStub? { nil }
+}
 
-  static var isEnabled: Bool {
-    get {
-      _isEnabled.lock()
-      defer { _isEnabled.unlock() }
-      return _value
+/// No-op stub for SentrySDK calls sprinkled through upstream code.
+enum SentrySDK {
+    static func start(_ configure: (Any) -> Void) {}
+    static func addBreadcrumb(_ breadcrumb: Breadcrumb) {}
+    static func configureScope(_ configure: @escaping (Scope) -> Void) {}
+    static func startTransaction(name: String, operation: String) -> SpanStub {
+        SpanStub()
     }
-    set {
-      _isEnabled.lock()
-      _value = newValue
-      _isEnabled.unlock()
-    }
-  }
+}
 
-  /// Enables or disables Sentry based on the shared telemetry preference.
-  static func setEnabled(_ enabled: Bool) {
-    if enabled {
-      startIfConfigured()
-      return
-    }
+/// No-op span returned by startTransaction.
+final class SpanStub {
+    func finish() {}
+    func finish(status: SentrySpanStatus) {}
+    func setData(value: Any, key: String) {}
+}
 
-    // Flip local gate first so helper calls become no-ops immediately.
-    isEnabled = false
-    SentrySDK.close()
-  }
-
-  /// Starts Sentry using app bundle configuration when a DSN is available.
-  static func startIfConfigured() {
-    guard !isEnabled else { return }
-
-    let info = Bundle.main.infoDictionary
-    let sentryDSN = info?["SentryDSN"] as? String ?? ""
-    guard !sentryDSN.isEmpty else {
-      isEnabled = false
-      return
-    }
-    let sentryEnv = info?["SentryEnvironment"] as? String ?? "production"
-
-    SentrySDK.start { options in
-      options.dsn = sentryDSN
-      options.environment = sentryEnv
-      #if DEBUG
-        options.debug = true
-        options.tracesSampleRate = 1.0
-      #else
-        options.tracesSampleRate = 0.1
-      #endif
-      options.attachStacktrace = true
-      options.enableAppHangTracking = true
-      options.appHangTimeoutInterval = 5.0
-      options.maxBreadcrumbs = 200
-      options.enableAutoSessionTracking = true
-    }
-    isEnabled = true
-  }
-
-  /// Safely adds a breadcrumb to Sentry, only if the SDK is initialized.
-  /// - Parameter breadcrumb: The breadcrumb to add
-  static func addBreadcrumb(_ breadcrumb: Breadcrumb) {
-    guard isEnabled else { return }
-    SentrySDK.addBreadcrumb(breadcrumb)
-  }
-
-  /// Safely configures Sentry scope, only if the SDK is initialized.
-  /// - Parameter configure: The scope configuration closure
-  static func configureScope(_ configure: @escaping (Scope) -> Void) {
-    guard isEnabled else { return }
-    SentrySDK.configureScope(configure)
-  }
-
-  /// Safely starts a performance transaction, only if Sentry is initialized.
-  static func startTransaction(name: String, operation: String) -> Span? {
-    guard isEnabled else { return nil }
-    return SentrySDK.startTransaction(name: name, operation: operation)
-  }
+/// No-op replacement for Sentry's SpanStatus enum.
+enum SentrySpanStatus {
+    case ok, internalError, cancelled, unknown
 }

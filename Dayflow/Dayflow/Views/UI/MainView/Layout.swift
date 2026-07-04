@@ -1,555 +1,751 @@
-import AppKit
-import Sentry
 import SwiftUI
+import AppKit
 
 extension MainView {
-  // `mainLayout` is split into two chained computed properties because the
-  // full modifier stack (20+ modifiers, several large inline closures) was
-  // exceeding Swift's per-expression type-check budget. Each `some View`
-  // boundary gives the solver a fresh, opaque anchor so the inner chain is
-  // type-checked in isolation. Closure bodies that ran long (onAppear, the
-  // tab-selection onChange, selectedDate onChange, toast overlay) are also
-  // extracted to named methods / computed properties below for the same
-  // reason.
-  var mainLayout: some View {
-    mainLayoutCore
-      .environmentObject(retryCoordinator)
-  }
-
-  // Layer 1: layout + visual overlays.
-  private var mainLayoutWithOverlays: some View {
-    contentStack
-      .padding([.top, .trailing, .bottom], 15)
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .background(Color.clear)
-      .ignoresSafeArea()
-      .blur(radius: goalFlowPresentation == nil ? 0 : 10)
-      .allowsHitTesting(goalFlowPresentation == nil)
-      // Hero animation overlay for video expansion (Emil Kowalski: shared element transitions)
-      .overlay { overlayContent }
-      .overlay(alignment: .bottomTrailing) { timelineFailureToastOverlayContent }
-      .overlay(alignment: .bottomTrailing) { screenRecordingPermissionNoticeOverlayContent }
-      .overlay { categoryEditorOverlay }
-  }
-
-  // Layer 2: sheet + lifecycle + notifications + state-change reactions.
-  private var mainLayoutCore: some View {
-    mainLayoutWithOverlays
-      .sheet(isPresented: $showDatePicker) {
-        DatePickerSheet(
-          selectedDate: Binding(
-            get: { selectedDate },
-            set: {
-              lastDateNavMethod = "picker"
-              setSelectedDate($0)
+    var mainLayout: some View {
+        contentStack
+            .padding([.top, .trailing, .bottom], 15)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.clear)
+            .ignoresSafeArea()
+            // Hero animation overlay for video expansion (Emil Kowalski: shared element transitions)
+            .overlay { overlayContent }
+            .overlay(alignment: .bottomTrailing) {
+                if let payload = timelineFailureToastPayload {
+                    TimelineFailureToastView(
+                        message: payload.message,
+                        onOpenSettings: { handleTimelineFailureToastOpenSettings(payload) },
+                        onDismiss: { handleTimelineFailureToastDismiss(payload) }
+                    )
+                    .padding(.trailing, 24)
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
-          ),
-          isPresented: $showDatePicker
+            .sheet(isPresented: $showDatePicker) {
+                DatePickerSheet(
+                    selectedDate: Binding(
+                        get: { selectedDate },
+                        set: {
+                            lastDateNavMethod = "picker"
+                            setSelectedDate($0)
+                        }
+                    ),
+                    isPresented: $showDatePicker
+                )
+            }
+            .onAppear {
+                // screen viewed and initial timeline view
+                AnalyticsService.shared.screen("timeline")
+                AnalyticsService.shared.withSampling(probability: 0.01) {
+                    AnalyticsService.shared.capture("timeline_viewed", ["date_bucket": dayString(selectedDate)])
+                }
+                // Orchestrated entrance animations following Emil Kowalski principles
+                // Fast, under 300ms, natural spring motion
+
+                // Logo appears first with scale and fade
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0)) {
+                    logoScale = 1.0
+                    logoOpacity = 1
+                }
+
+                // Timeline text slides in from left
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0).delay(0.1)) {
+                    timelineOffset = 0
+                    timelineOpacity = 1
+                }
+
+                // Sidebar slides up
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0).delay(0.15)) {
+                    sidebarOffset = 0
+                    sidebarOpacity = 1
+                }
+
+                // Main content fades in last
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0).delay(0.2)) {
+                    contentOpacity = 1
+                }
+
+                // Perform initial scroll to current time on cold start
+                if !didInitialScroll {
+                    performInitialScrollIfNeeded()
+                }
+
+                // Start minute-level tick to detect timeline-day rollover (4am boundary)
+                startDayChangeTimer()
+
+                // Load weekly activity hours
+                loadWeeklyTrackedMinutes()
+                updateCardsToReviewCount()
+            }
+            // Trigger reset when idle fired and timeline is visible
+            .onChange(of: inactivity.pendingReset) { _, fired in
+                if fired, selectedIcon != .settings {
+                    performIdleResetAndScroll()
+                    InactivityMonitor.shared.markHandledIfPending()
+                }
+            }
+            .onChange(of: selectedIcon) { _, newIcon in
+                // Clear journal notification badge when navigating to journal
+                if newIcon == .journal {
+                    NotificationBadgeManager.shared.clearBadge()
+                }
+
+                // tab selected + screen viewed
+                let tabName: String
+                switch newIcon {
+                case .timeline: tabName = "timeline"
+                case .chat: tabName = "chat"
+                case .daily: tabName = "daily"
+                case .journal: tabName = "journal"
+                case .bug: tabName = "bug_report"
+                case .settings: tabName = "settings"
+                }
+
+
+                AnalyticsService.shared.capture("tab_selected", ["tab": tabName])
+                AnalyticsService.shared.screen(tabName)
+                if newIcon == .timeline {
+                    AnalyticsService.shared.withSampling(probability: 0.01) {
+                        AnalyticsService.shared.capture("timeline_viewed", ["date_bucket": dayString(selectedDate)])
+                    }
+                    updateCardsToReviewCount()
+                } else {
+                    showTimelineReview = false
+                }
+            }
+            // Handle navigation from journal reminder notification tap
+            .onReceive(NotificationCenter.default.publisher(for: .navigateToJournal)) { _ in
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                    selectedIcon = .journal
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .showTimelineFailureToast)) { notification in
+                guard let userInfo = notification.userInfo,
+                      let payload = TimelineFailureToastPayload(userInfo: userInfo) else {
+                    return
+                }
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                    timelineFailureToastPayload = payload
+                }
+            }
+            .onChange(of: selectedDate) { _, newDate in
+                // If changed via picker, emit navigation now
+                if let method = lastDateNavMethod, method == "picker" {
+                    AnalyticsService.shared.capture("date_navigation", [
+                        "method": method,
+                        "from_day": dayString(previousDate),
+                        "to_day": dayString(newDate)
+                    ])
+                }
+                previousDate = newDate
+                AnalyticsService.shared.withSampling(probability: 0.01) {
+                    AnalyticsService.shared.capture("timeline_viewed", ["date_bucket": dayString(newDate)])
+                }
+                updateCardsToReviewCount()
+            }
+            .onChange(of: refreshActivitiesTrigger) {
+                updateCardsToReviewCount()
+            }
+            .onChange(of: selectedActivity?.id) {
+                dismissFeedbackModal(animated: false)
+                guard let a = selectedActivity else { return }
+                let dur = a.endTime.timeIntervalSince(a.startTime)
+                AnalyticsService.shared.capture("activity_card_opened", [
+                    "activity_type": a.category,
+                    "duration_bucket": AnalyticsService.shared.secondsBucket(dur),
+                    "has_video": a.videoSummaryURL != nil
+                ])
+            }
+            // If user returns from Settings and a reset was pending, perform it once
+            .onChange(of: selectedIcon) { _, newIcon in
+                if newIcon != .settings, inactivity.pendingReset {
+                    performIdleResetAndScroll()
+                    InactivityMonitor.shared.markHandledIfPending()
+                }
+            }
+            .onDisappear {
+                // Safety: stop timer if view disappears
+                stopDayChangeTimer()
+                copyTimelineTask?.cancel()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                // Check if day changed while app was backgrounded
+                handleMinuteTickForDayChange()
+                // Ensure timer is running
+                if dayChangeTimer == nil {
+                    startDayChangeTimer()
+                }
+                // Refresh weekly hours in case activities were added
+                loadWeeklyTrackedMinutes()
+            }
+            .overlay { categoryEditorOverlay }
+            .environmentObject(retryCoordinator)
+    }
+
+    private func handleTimelineFailureToastOpenSettings(_ payload: TimelineFailureToastPayload) {
+        AnalyticsService.shared.capture("llm_timeline_failure_toast_clicked_settings", payload.analyticsProps)
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+            selectedIcon = .settings
+            timelineFailureToastPayload = nil
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            NotificationCenter.default.post(name: .openProvidersSettings, object: nil)
+        }
+    }
+
+    private func handleTimelineFailureToastDismiss(_ payload: TimelineFailureToastPayload) {
+        AnalyticsService.shared.capture("llm_timeline_failure_toast_dismissed", payload.analyticsProps)
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.92)) {
+            timelineFailureToastPayload = nil
+        }
+    }
+
+    private var contentStack: some View {
+        // Two-column layout: left logo + sidebar; right white panel with header, filters, timeline
+        HStack(alignment: .top, spacing: 0) {
+            leftColumn
+            rightPanel
+        }
+        .padding(0)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var leftColumn: some View {
+        // Left column: Logo on top, sidebar centered
+        VStack(spacing: 0) {
+            // Logo area (keeps same animation)
+            LogoBadgeView(imageName: "DayflowLogoMainApp", size: 36)
+                .frame(height: 100)
+                .frame(maxWidth: .infinity)
+                .scaleEffect(logoScale)
+                .opacity(logoOpacity)
+
+            Spacer(minLength: 0)
+
+            // Sidebar in fixed-width gutter
+            VStack {
+                Spacer()
+                SidebarView(selectedIcon: $selectedIcon)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .offset(y: sidebarOffset)
+                    .opacity(sidebarOpacity)
+                Spacer()
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(width: 100)
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxHeight: .infinity)
+        .layoutPriority(1)
+    }
+
+    @ViewBuilder
+    private var rightPanel: some View {
+        // Right column: Main white panel including header + content
+        ZStack {
+            contentForSelectedIcon
+        }
+        .padding(0)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(mainPanelBackground)
+    }
+
+    @ViewBuilder
+    private var contentForSelectedIcon: some View {
+        switch selectedIcon {
+        case .settings:
+            SettingsView()
+                .padding(15)
+        case .chat:
+            ChatPanelView()
+        case .daily:
+            DailyView(selectedDate: $selectedDate)
+        case .journal:
+            JournalView(
+                selectedDate: $selectedDate,
+                showDatePicker: $showDatePicker,
+                lastDateNavMethod: $lastDateNavMethod,
+                previousDate: $previousDate
+            )
+                .padding(15)
+        case .bug:
+            BugReportView()
+                .padding(15)
+        case .timeline:
+            GeometryReader { geo in
+                timelinePanel(geo: geo)
+            }
+        }
+    }
+
+    private var mainPanelBackground: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 0)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white)
+                .blendMode(.destinationOut)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(.white.opacity(0.22))
+        }
+        .compositingGroup()
+    }
+
+    private func timelinePanel(geo: GeometryProxy) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            timelineLeftColumn
+            Rectangle()
+                .fill(Color(hex: "ECECEC"))
+                .frame(width: 1)
+                .frame(maxHeight: .infinity)
+            timelineRightColumn(geo: geo)
+        }
+        .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+    }
+
+    private var timelineLeftColumn: some View {
+        ZStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 18) {
+                timelineHeader
+                timelineContent
+            }
+            .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.top, 15)
+            .padding(.bottom, 15)
+            .padding(.leading, 15)
+            .padding(.trailing, 5)
+
+            timelineFooter
+        }
+        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .coordinateSpace(name: "TimelinePane")
+        .onPreferenceChange(TimelineTimeLabelFramesPreferenceKey.self) { frames in
+            timelineTimeLabelFrames = frames
+        }
+        .onPreferenceChange(WeeklyHoursFramePreferenceKey.self) { frame in
+            weeklyHoursFrame = frame
+        }
+    }
+
+    private var timelineHeader: some View {
+        HStack(alignment: .center) {
+            HStack(spacing: 16) {
+                Text(formatDateForDisplay(selectedDate))
+                    .font(.custom("InstrumentSerif-Regular", size: 36))
+                    .foregroundColor(Color.black)
+                    .frame(width: Self.maxDateTitleWidth, alignment: .leading)
+
+                HStack(spacing: 3) {
+                    Button(action: {
+                        let from = selectedDate
+                        let to = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+                        previousDate = selectedDate
+                        setSelectedDate(to)
+                        lastDateNavMethod = "prev"
+                        AnalyticsService.shared.capture("date_navigation", [
+                            "method": "prev",
+                            "from_day": dayString(from),
+                            "to_day": dayString(to)
+                        ])
+                    }) {
+                        Image("CalendarLeftButton")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 26, height: 26)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+
+                    Button(action: {
+                        guard canNavigateForward(from: selectedDate) else { return }
+                        let from = selectedDate
+                        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                        previousDate = selectedDate
+                        setSelectedDate(tomorrow)
+                        lastDateNavMethod = "next"
+                        AnalyticsService.shared.capture("date_navigation", [
+                            "method": "next",
+                            "from_day": dayString(from),
+                            "to_day": dayString(tomorrow)
+                        ])
+                    }) {
+                        Image("CalendarRightButton")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 26, height: 26)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .disabled(!canNavigateForward(from: selectedDate))
+                }
+            }
+            .offset(x: timelineOffset)
+            .opacity(timelineOpacity)
+
+            Spacer()
+
+            // Recording toggle (now inline with header)
+            HStack(spacing: 4) {
+                Text("Record")
+                    .font(
+                        Font.custom("Nunito", size: 12)
+                            .weight(.medium)
+                    )
+                    .foregroundColor(Color(red: 0.62, green: 0.44, blue: 0.36))
+
+                Toggle("Record", isOn: $appState.isRecording)
+                    .labelsHidden()
+                    .toggleStyle(SunriseGlassPillToggleStyle())
+                    .scaleEffect(0.7)
+                    .accessibilityLabel(Text("Recording"))
+            }
+        }
+        .padding(.horizontal, 10)
+    }
+
+    private var timelineContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            TabFilterBar(
+                categories: categoryStore.editableCategories,
+                idleCategory: categoryStore.idleCategory,
+                onManageCategories: { showCategoryEditor = true }
+            )
+            .padding(.leading, 10)
+            .opacity(contentOpacity)
+
+            CanvasTimelineDataView(
+                selectedDate: $selectedDate,
+                selectedActivity: $selectedActivity,
+                scrollToNowTick: $scrollToNowTick,
+                hasAnyActivities: $hasAnyActivities,
+                refreshTrigger: $refreshActivitiesTrigger,
+                weeklyHoursFrame: weeklyHoursFrame,
+                weeklyHoursIntersectsCard: $weeklyHoursIntersectsCard
+            )
+            .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+            .environmentObject(categoryStore)
+            .opacity(contentOpacity)
+        }
+        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var timelineFooter: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            // Bottom footer bar - all items bottom-aligned
+            ZStack(alignment: .bottom) {
+                // Left & right items
+                HStack(alignment: .bottom) {
+                    weeklyHoursText
+                        .opacity(contentOpacity * weeklyHoursFadeOpacity)
+
+                    Spacer()
+
+                    copyTimelineButton
+                        .opacity(contentOpacity)
+                }
+                .padding(.horizontal, 24)
+
+                // Centered badge (bottom-aligned with text)
+                if cardsToReviewCount > 0 {
+                    CardsToReviewButton(count: cardsToReviewCount) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            showTimelineReview = true
+                        }
+                    }
+                    .opacity(contentOpacity)
+                }
+            }
+            .padding(.bottom, 17)
+        }
+        .allowsHitTesting(true)
+    }
+
+    private func timelineRightColumn(geo: GeometryProxy) -> some View {
+        // Right column: activity detail card OR day summary — spans full height
+        ZStack(alignment: .topLeading) {
+            Color.white.opacity(0.7)
+
+            if let activity = selectedActivity {
+                // Show activity details when a card is selected
+                ZStack(alignment: .bottom) {
+                    ActivityCard(
+                        activity: activity,
+                        maxHeight: geo.size.height,
+                        scrollSummary: true,
+                        hasAnyActivities: hasAnyActivities,
+                        onCategoryChange: { category, activity in
+                            handleCategoryChange(to: category, for: activity)
+                        },
+                        onNavigateToCategoryEditor: {
+                            showCategoryEditor = true
+                        },
+                        onRetryBatchCompleted: { batchId in
+                            refreshActivitiesTrigger &+= 1
+                            if selectedActivity?.batchId == batchId {
+                                selectedActivity = nil
+                            }
+                        }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(!feedbackModalVisible)
+                    .padding(.bottom, rateSummaryFooterHeight)
+
+                    if !feedbackModalVisible {
+                        TimelineRateSummaryView(
+                            activityID: activity.id,
+                            onRate: handleTimelineRating
+                        )
+                        .frame(maxWidth: .infinity)
+                        .allowsHitTesting(!feedbackModalVisible)
+                        .transition(
+                            .move(edge: .bottom)
+                                .combined(with: .opacity)
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            } else {
+                DaySummaryView(
+                    selectedDate: selectedDate,
+                    categories: categoryStore.categories,
+                    storageManager: StorageManager.shared,
+                    cardsToReviewCount: cardsToReviewCount,
+                    reviewRefreshToken: reviewSummaryRefreshToken,
+                    onReviewTap: {
+                        guard cardsToReviewCount > 0 else { return }
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            showTimelineReview = true
+                        }
+                    }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+            if let direction = feedbackDirection, feedbackModalVisible {
+                TimelineFeedbackModal(
+                    message: $feedbackMessage,
+                    shareLogs: $feedbackShareLogs,
+                    direction: direction,
+                    mode: feedbackMode,
+                    onSubmit: handleFeedbackSubmit,
+                    onClose: { dismissFeedbackModal() }
+                )
+                .padding(.leading, 24)
+                .padding(.bottom, 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(2)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .opacity(contentOpacity)
+        .animation(.spring(response: 0.35, dampingFraction: 0.9), value: selectedActivity?.id)
+        .clipShape(
+            UnevenRoundedRectangle(
+                cornerRadii: .init(
+                    topLeading: 0,
+                    bottomLeading: 0, bottomTrailing: 8, topTrailing: 8
+                )
+            )
         )
-      }
-      .onAppear(perform: performMainLayoutOnAppear)
-      .onDisappear(perform: performMainLayoutOnDisappear)
-      .onChange(of: inactivity.pendingReset) { _, fired in
-        if fired, selectedIcon != .settings {
-          performIdleResetAndScroll()
-          InactivityMonitor.shared.markHandledIfPending()
+        .contentShape(
+            UnevenRoundedRectangle(
+                cornerRadii: .init(
+                    topLeading: 0,
+                    bottomLeading: 0, bottomTrailing: 8, topTrailing: 8
+                )
+            )
+        )
+        .frame(minWidth: 240, idealWidth: 358, maxWidth: 358, maxHeight: .infinity)
+    }
+
+    private var overlayContent: some View {
+        ZStack {
+            VideoExpansionOverlay(
+                expansionState: videoExpansionState,
+                namespace: videoHeroNamespace
+            )
+
+            if selectedIcon == .timeline, showTimelineReview {
+                TimelineReviewOverlay(
+                    isPresented: $showTimelineReview,
+                    selectedDate: selectedDate
+                ) {
+                    updateCardsToReviewCount()
+                    reviewSummaryRefreshToken &+= 1
+                }
+                .environmentObject(categoryStore)
+                .transition(.opacity)
+                .zIndex(2)
+            }
         }
-      }
-      .onChange(of: selectedIcon) { _, newIcon in
-        handleTabSelectionChange(newIcon)
-      }
-      .onChange(of: selectedDate) { _, newDate in
-        handleSelectedDateChange(newDate)
-      }
-      .onChange(of: refreshActivitiesTrigger) {
-        updateCardsToReviewCount()
-        loadWeeklyTrackedMinutes()
-      }
-      .onChange(of: selectedActivity?.id) {
-        handleSelectedActivityIdChange()
-      }
-      // Second observer on selectedIcon: if user returns from Settings and a
-      // reset was pending, perform it once. SwiftUI allows multiple onChange
-      // handlers for the same value — they fire in declaration order.
-      .onChange(of: selectedIcon) { _, newIcon in
-        if newIcon != .settings, inactivity.pendingReset {
-          performIdleResetAndScroll()
-          InactivityMonitor.shared.markHandledIfPending()
+    }
+
+    @ViewBuilder
+    private var categoryEditorOverlay: some View {
+        if showCategoryEditor {
+            ColorOrganizerRoot(
+                presentationStyle: .sheet,
+                onDismiss: { showCategoryEditor = false }, completionButtonTitle: "Save", showsTitles: true
+            )
+            .environmentObject(categoryStore)
+            // Removed .contentShape(Rectangle()) and .onTapGesture to allow keyboard input
         }
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToJournal)) { _ in
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-          selectedIcon = .weekly
+    }
+
+    private var weeklyHoursFadeOpacity: Double {
+        guard weeklyHoursFrame != .zero, !timelineTimeLabelFrames.isEmpty else { return 1 }
+        var maxOverlap: CGFloat = 0
+        for frame in timelineTimeLabelFrames {
+            let intersection = weeklyHoursFrame.intersection(frame)
+            if !intersection.isNull {
+                maxOverlap = max(maxOverlap, intersection.height)
+            }
         }
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToWeekly)) { _ in
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-          selectedIcon = .weekly
+        guard maxOverlap > 0 else { return 1 }
+        let clamped = min(maxOverlap, weeklyHoursFadeDistance)
+        return Double(1 - (clamped / weeklyHoursFadeDistance))
+    }
+
+    private var weeklyHoursText: some View {
+        let hours = Int(weeklyTrackedMinutes / 60)
+        let textColor = Color(red: 0.84, green: 0.65, blue: 0.52)
+
+        return HStack(spacing: 4) {
+            Text("\(hours) hours")
+                .font(Font.custom("Nunito", size: 10).weight(.bold))
+                .foregroundColor(textColor)
+            Text("tracked this week")
+                .font(Font.custom("Nunito", size: 10).weight(.regular))
+                .foregroundColor(textColor)
         }
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .showTimelineFailureToast)) {
-        handleShowTimelineFailureToastNotification($0)
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .showScreenRecordingPermissionNotice)) {
-        handleShowScreenRecordingPermissionNoticeNotification($0)
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .timelineDataUpdated)) {
-        handleTimelineDataUpdatedNotification($0)
-      }
-      .onReceive(
-        NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
-      ) { _ in
-        handleAppDidBecomeActive()
-      }
-  }
-
-  // MARK: - Extracted overlays and event handlers
-  //
-  // Each of these corresponds to a closure or inline view that used to live
-  // inline in the `mainLayout` modifier chain. Extraction is load-bearing:
-  // without it, the combined type-check of `mainLayout`'s modifier chain +
-  // each closure's body exceeded Swift's per-expression solver budget.
-
-  @ViewBuilder
-  private var timelineFailureToastOverlayContent: some View {
-    if let payload = timelineFailureToastPayload {
-      TimelineFailureToastView(
-        title: payload.title,
-        message: payload.message,
-        actionTitle: payload.destination == .account ? "Open Account" : "Open Provider Settings",
-        onOpenSettings: { handleTimelineFailureToastOpenSettings(payload) },
-        onDismiss: { handleTimelineFailureToastDismiss(payload) }
-      )
-      .padding(.trailing, 24)
-      .padding(.bottom, 24)
-      .transition(.move(edge: .trailing).combined(with: .opacity))
-    }
-  }
-
-  @ViewBuilder
-  private var screenRecordingPermissionNoticeOverlayContent: some View {
-    if showScreenRecordingPermissionNotice {
-      ScreenRecordingPermissionNoticeView(
-        onOpenSettings: handleScreenRecordingPermissionNoticeOpenSettings,
-        onDismiss: handleScreenRecordingPermissionNoticeDismiss
-      )
-      .padding(.trailing, 24)
-      .padding(.bottom, 24)
-      .transition(.move(edge: .trailing).combined(with: .opacity))
-    }
-  }
-
-  private func performMainLayoutOnAppear() {
-    syncCurrentUIContext()
-
-    // screen viewed and initial timeline view
-    AnalyticsService.shared.screen("timeline")
-    AnalyticsService.shared.withSampling(probability: 0.01) {
-      AnalyticsService.shared.capture(
-        "timeline_viewed", ["date_bucket": dayString(selectedDate)])
-    }
-    // Orchestrated entrance animations following Emil Kowalski principles —
-    // fast, under 300ms, natural spring motion, staggered by 50ms.
-    withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0)) {
-      logoScale = 1.0
-      logoOpacity = 1
-    }
-    withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0).delay(0.1)) {
-      timelineOffset = 0
-      timelineOpacity = 1
-    }
-    withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0).delay(0.15)) {
-      sidebarOffset = 0
-      sidebarOpacity = 1
-    }
-    withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0).delay(0.2)) {
-      contentOpacity = 1
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: WeeklyHoursFramePreferenceKey.self,
+                    value: proxy.frame(in: .named("TimelinePane"))
+                )
+            }
+        )
     }
 
-    if !didInitialScroll {
-      performInitialScrollIfNeeded()
-    }
-    showScreenRecordingNoticeIfNeeded()
-    startDayChangeTimer()
-    loadWeeklyTrackedMinutes()
-    updateCardsToReviewCount()
-    requestDailyGoalPromptIfNeeded()
-  }
+    private var copyTimelineButton: some View {
+        let background = Color(red: 0.99, green: 0.93, blue: 0.88)
+        let stroke = Color(red: 0.97, green: 0.89, blue: 0.81)
+        let textColor = Color(red: 0.84, green: 0.65, blue: 0.52)
 
-  private func performMainLayoutOnDisappear() {
-    // Safety: stop timer if view disappears
-    stopDayChangeTimer()
-    reviewCountTask?.cancel()
-    reviewCountTask = nil
-    copyTimelineTask?.cancel()
-    deleteTimelineTask?.cancel()
-  }
+        let transition = AnyTransition.opacity.combined(with: .scale(scale: 0.5))
 
-  private func handleTabSelectionChange(_ newIcon: SidebarIcon) {
-    // Clear tab-specific notification badges once the user visits the destination.
-    if newIcon == .journal {
-      NotificationBadgeManager.shared.clearJournalBadge()
-    } else if newIcon == .daily {
-      if !consumePendingDailyRecapOpenIfNeeded(source: "daily_tab_selected") {
-        NotificationBadgeManager.shared.clearDailyBadge()
-      }
-    }
-
-    let tabName = newIcon.analyticsTabName
-    syncCurrentUIContext(selectedTab: newIcon)
-
-    SentryHelper.configureScope { scope in
-      scope.setContext(
-        value: [
-          "active_view": tabName,
-          "selected_date": dayString(selectedDate),
-          "is_recording": appState.isRecording,
-        ], key: "app_state")
-    }
-
-    let navBreadcrumb = Breadcrumb(level: .info, category: "navigation")
-    navBreadcrumb.message = "Navigated to \(tabName)"
-    navBreadcrumb.data = ["view": tabName]
-    SentryHelper.addBreadcrumb(navBreadcrumb)
-
-    AnalyticsService.shared.capture("tab_selected", ["tab": tabName])
-    AnalyticsService.shared.screen(tabName)
-    if newIcon == .timeline {
-      AnalyticsService.shared.withSampling(probability: 0.01) {
-        AnalyticsService.shared.capture(
-          "timeline_viewed", ["date_bucket": dayString(selectedDate)])
-      }
-      updateCardsToReviewCount()
-      loadWeeklyTrackedMinutes()
-    } else {
-      showTimelineReview = false
-    }
-  }
-
-  private func handleSelectedDateChange(_ newDate: Date) {
-    let changeStart = CFAbsoluteTimeGetCurrent()
-    let oldDate = previousDate
-    let oldDay = dayString(oldDate)
-    let newDay = dayString(newDate)
-    let oldWeekRange = cachedTimelineWeekRange
-
-    if let method = lastDateNavMethod, method == "picker" {
-      AnalyticsService.shared.capture(
-        "date_navigation",
-        [
-          "method": method,
-          "timeline_mode": timelineMode.rawValue,
-          "from_day": oldDay,
-          "to_day": newDay,
-        ])
-    }
-
-    previousDate = newDate
-    AnalyticsService.shared.withSampling(probability: 0.01) {
-      AnalyticsService.shared.capture("timeline_viewed", ["date_bucket": newDay])
-    }
-
-    let newWeekRange = TimelineWeekRange.containing(newDate)
-    let weekRangeChanged = newWeekRange != oldWeekRange
-
-    timelinePerfLog(
-      "selectedDateChange.begin mode=\(timelineMode.rawValue) old=\(oldDay) new=\(newDay) weekChanged=\(weekRangeChanged) navMethod=\(lastDateNavMethod ?? "nil")"
-    )
-
-    cachedTimelineWeekRange = newWeekRange
-    updateCardsToReviewCount(trigger: "selectedDateChange")
-    if weekRangeChanged {
-      loadWeeklyTrackedMinutes(trigger: "selectedDateChange")
-    }
-
-    let durationMs = Int((CFAbsoluteTimeGetCurrent() - changeStart) * 1000)
-    timelinePerfLog(
-      "selectedDateChange.end mode=\(timelineMode.rawValue) old=\(oldDay) new=\(newDay) weekChanged=\(weekRangeChanged) duration_ms=\(durationMs)"
-    )
-  }
-
-  private func handleSelectedActivityIdChange() {
-    dismissFeedbackModal(animated: false)
-    guard let a = selectedActivity else { return }
-    let dur = a.endTime.timeIntervalSince(a.startTime)
-    AnalyticsService.shared.capture(
-      "activity_card_opened",
-      [
-        "activity_type": a.category,
-        "duration_bucket": AnalyticsService.shared.secondsBucket(dur),
-        "has_video": a.videoSummaryURL != nil,
-      ])
-  }
-
-  private func handleTimelineDataUpdatedNotification(_ notification: Notification) {
-    guard selectedIcon == .timeline else { return }
-    if let refreshedDay = notification.userInfo?["dayString"] as? String {
-      let selectedTimelineDay = DateFormatter.yyyyMMdd.string(
-        from: timelineDisplayDate(from: selectedDate, now: Date())
-      )
-      guard refreshedDay == selectedTimelineDay else { return }
-    }
-    updateCardsToReviewCount()
-    loadWeeklyTrackedMinutes()
-  }
-
-  private func handleShowTimelineFailureToastNotification(_ notification: Notification) {
-    guard let userInfo = notification.userInfo,
-      let payload = TimelineFailureToastPayload(userInfo: userInfo)
-    else {
-      return
-    }
-    withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
-      timelineFailureToastPayload = payload
-    }
-  }
-
-  private func handleShowScreenRecordingPermissionNoticeNotification(_ notification: Notification) {
-    showScreenRecordingNoticeIfNeeded()
-  }
-
-  private func showScreenRecordingNoticeIfNeeded() {
-    guard !didDismissScreenRecordingPermissionNoticeThisSession else { return }
-    guard !ScreenRecordingPermissionNotice.isGranted else {
-      showScreenRecordingPermissionNotice = false
-      return
-    }
-    guard AppState.shared.getSavedPreference() == true || appState.isRecording else { return }
-
-    withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
-      showScreenRecordingPermissionNotice = true
-    }
-  }
-
-  private func handleAppDidBecomeActive() {
-    if ScreenRecordingPermissionNotice.isGranted {
-      showScreenRecordingPermissionNotice = false
-      didDismissScreenRecordingPermissionNoticeThisSession = false
-    }
-
-    // Check if day changed while app was backgrounded
-    handleMinuteTickForDayChange()
-    requestDailyGoalPromptIfNeeded()
-    // Ensure timer is running
-    if dayChangeTimer == nil {
-      startDayChangeTimer()
-    }
-    // Refresh weekly hours in case activities were added
-    loadWeeklyTrackedMinutes()
-  }
-
-  private func handleTimelineFailureToastOpenSettings(_ payload: TimelineFailureToastPayload) {
-    AnalyticsService.shared.capture(
-      "llm_timeline_failure_toast_clicked_settings", payload.analyticsProps)
-    withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-      selectedIcon = .settings
-      timelineFailureToastPayload = nil
-    }
-    let settingsTab: Notification.Name =
-      payload.destination == .account ? .openAccountSettings : .openProvidersSettings
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-      NotificationCenter.default.post(name: settingsTab, object: nil)
-    }
-  }
-
-  private func handleTimelineFailureToastDismiss(_ payload: TimelineFailureToastPayload) {
-    AnalyticsService.shared.capture("llm_timeline_failure_toast_dismissed", payload.analyticsProps)
-    withAnimation(.spring(response: 0.25, dampingFraction: 0.92)) {
-      timelineFailureToastPayload = nil
-    }
-  }
-
-  private func handleScreenRecordingPermissionNoticeOpenSettings() {
-    AnalyticsService.shared.capture("screen_permission_notice_clicked_settings")
-    didDismissScreenRecordingPermissionNoticeThisSession = true
-    withAnimation(.spring(response: 0.25, dampingFraction: 0.92)) {
-      showScreenRecordingPermissionNotice = false
-    }
-    ScreenRecordingPermissionNotice.openSystemSettings()
-  }
-
-  private func handleScreenRecordingPermissionNoticeDismiss() {
-    AnalyticsService.shared.capture("screen_permission_notice_dismissed")
-    didDismissScreenRecordingPermissionNoticeThisSession = true
-    withAnimation(.spring(response: 0.25, dampingFraction: 0.92)) {
-      showScreenRecordingPermissionNotice = false
-    }
-  }
-
-  private var overlayContent: some View {
-    ZStack {
-      VideoExpansionOverlay(
-        expansionState: videoExpansionState,
-        namespace: videoHeroNamespace
-      )
-
-      if selectedIcon == .timeline, showTimelineReview {
-        TimelineReviewOverlay(
-          isPresented: $showTimelineReview,
-          selectedDate: selectedDate
-        ) {
-          updateCardsToReviewCount()
-          reviewSummaryRefreshToken &+= 1
+        return Button(action: copyTimelineToClipboard) {
+            ZStack {
+                if copyTimelineState == .copying {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .progressViewStyle(CircularProgressViewStyle(tint: textColor))
+                        .transition(transition)
+                } else if copyTimelineState == .copied {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .medium))
+                        Text("Copied")
+                            .font(Font.custom("Nunito", size: 10).weight(.medium))
+                    }
+                    .transition(transition)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 10, weight: .medium))
+                        Text("Copy timeline")
+                            .font(Font.custom("Nunito", size: 10).weight(.medium))
+                    }
+                    .transition(transition)
+                }
+            }
+            .frame(width: 90, height: 20)
+            .foregroundColor(textColor)
+            .background(background)
+            .cornerRadius(6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .inset(by: 0.38)
+                    .stroke(stroke, lineWidth: 0.75)
+            )
+            .contentShape(Rectangle())
         }
-        .environmentObject(categoryStore)
-        .transition(.opacity)
-        .zIndex(2)
-      }
-
+        .buttonStyle(ShrinkButtonStyle())
+        .disabled(copyTimelineState == .copying)
+        .accessibilityLabel(Text("Copy timeline to clipboard"))
     }
-  }
+}
 
-  @ViewBuilder
-  private var categoryEditorOverlay: some View {
-    if showCategoryEditor {
-      ColorOrganizerRoot(
-        presentationStyle: .sheet,
-        onDismiss: { showCategoryEditor = false }, completionButtonTitle: "Save", showsTitles: true
-      )
-      .environmentObject(categoryStore)
-      // Removed .contentShape(Rectangle()) and .onTapGesture to allow keyboard input
+private struct ShrinkButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .opacity(1)
     }
-  }
 }
 
 private struct TimelineFailureToastView: View {
-  let title: String?
-  let message: String
-  let actionTitle: String
-  let onOpenSettings: () -> Void
-  let onDismiss: () -> Void
+    let message: String
+    let onOpenSettings: () -> Void
+    let onDismiss: () -> Void
 
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(alignment: .top, spacing: 10) {
-        Image(systemName: "exclamationmark.triangle.fill")
-          .font(.system(size: 14))
-          .foregroundColor(Color(hex: "C04A00"))
-          .padding(.top, 2)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hex: "C04A00"))
+                    .padding(.top, 2)
 
-        // Mirrors ScreenRecordingPermissionNoticeView: semibold title with a
-        // quieter body. Untitled (generic fallback) toasts keep the old look.
-        VStack(alignment: .leading, spacing: 3) {
-          if let title {
-            Text(title)
-              .font(.custom("Figtree", size: 13))
-              .fontWeight(.semibold)
-              .foregroundColor(.black.opacity(0.86))
-          }
+                Text(message)
+                    .font(.custom("Nunito", size: 13))
+                    .foregroundColor(.black.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
 
-          Text(message)
-            .font(.custom("Figtree", size: title == nil ? 13 : 12))
-            .foregroundColor(.black.opacity(title == nil ? 0.82 : 0.62))
-            .fixedSize(horizontal: false, vertical: true)
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.45))
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.plain)
+            }
+
+            DayflowSurfaceButton(
+                action: onOpenSettings,
+                content: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 12))
+                        Text("Open Provider Settings")
+                            .font(.custom("Nunito", size: 12))
+                            .fontWeight(.semibold)
+                    }
+                },
+                background: Color(red: 0.25, green: 0.17, blue: 0),
+                foreground: .white,
+                borderColor: .clear,
+                cornerRadius: 8,
+                horizontalPadding: 14,
+                verticalPadding: 8,
+                showOverlayStroke: true
+            )
         }
-
-        Button(action: onDismiss) {
-          Image(systemName: "xmark")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(.black.opacity(0.45))
-            .frame(width: 18, height: 18)
-        }
-        .buttonStyle(.plain)
-        .hoverScaleEffect(scale: 1.02)
-        .pointingHandCursorOnHover(reassertOnPressEnd: true)
-      }
-
-      DayflowSurfaceButton(
-        action: onOpenSettings,
-        content: {
-          HStack(spacing: 6) {
-            Image(systemName: "gearshape")
-              .font(.system(size: 12))
-            Text(actionTitle)
-              .font(.custom("Figtree", size: 12))
-              .fontWeight(.semibold)
-          }
-        },
-        background: Color(red: 0.25, green: 0.17, blue: 0),
-        foreground: .white,
-        borderColor: .clear,
-        cornerRadius: 8,
-        horizontalPadding: 14,
-        verticalPadding: 8,
-        showOverlayStroke: true
-      )
+        .padding(14)
+        .frame(width: 360, alignment: .leading)
+        .background(Color(hex: "FFF8F2"))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(hex: "F3D9C2"), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
     }
-    .padding(14)
-    .frame(width: 360, alignment: .leading)
-    .background(Color(hex: "FFF8F2"))
-    .cornerRadius(12)
-    .overlay(
-      RoundedRectangle(cornerRadius: 12)
-        .stroke(Color(hex: "F3D9C2"), lineWidth: 1)
-    )
-    .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
-  }
-}
-
-private struct ScreenRecordingPermissionNoticeView: View {
-  let onOpenSettings: () -> Void
-  let onDismiss: () -> Void
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(alignment: .top, spacing: 10) {
-        Image(systemName: "record.circle.fill")
-          .font(.system(size: 15))
-          .foregroundColor(Color(hex: "C7352D"))
-          .padding(.top, 2)
-
-        VStack(alignment: .leading, spacing: 3) {
-          Text("Screen recording access needed")
-            .font(.custom("Figtree", size: 13))
-            .fontWeight(.semibold)
-            .foregroundColor(.black.opacity(0.86))
-
-          Text("Dayflow cannot update your timeline until access is restored.")
-            .font(.custom("Figtree", size: 12))
-            .foregroundColor(.black.opacity(0.62))
-            .fixedSize(horizontal: false, vertical: true)
-        }
-
-        Button(action: onDismiss) {
-          Image(systemName: "xmark")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(.black.opacity(0.45))
-            .frame(width: 18, height: 18)
-        }
-        .buttonStyle(.plain)
-        .hoverScaleEffect(scale: 1.02)
-        .pointingHandCursorOnHover(reassertOnPressEnd: true)
-      }
-
-      DayflowSurfaceButton(
-        action: onOpenSettings,
-        content: {
-          HStack(spacing: 6) {
-            Image(systemName: "gearshape")
-              .font(.system(size: 12))
-            Text("Open System Settings")
-              .font(.custom("Figtree", size: 12))
-              .fontWeight(.semibold)
-          }
-        },
-        background: Color(red: 0.25, green: 0.17, blue: 0),
-        foreground: .white,
-        borderColor: .clear,
-        cornerRadius: 8,
-        horizontalPadding: 14,
-        verticalPadding: 8,
-        showOverlayStroke: true
-      )
-    }
-    .padding(14)
-    .frame(width: 360, alignment: .leading)
-    .background(Color(hex: "FFF8F2"))
-    .cornerRadius(12)
-    .overlay(
-      RoundedRectangle(cornerRadius: 12)
-        .stroke(Color(hex: "F3D9C2"), lineWidth: 1)
-    )
-    .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
-  }
 }
