@@ -1,0 +1,125 @@
+name: Smart Fork Sync
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  FORK_BRANCH: yurifrl2
+  UPSTREAM_REMOTE: base
+  UPSTREAM_REPO: JerryZLiu/Dayflow
+  UPSTREAM_BRANCH: main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GHA_PAT_FORK_AUTO_SYNC }}
+    steps:
+      - name: Checkout fork branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FORK_BRANCH }}
+          fetch-depth: 0
+          token: ${{ secrets.GHA_PAT_FORK_AUTO_SYNC }}
+
+      - name: Verify token
+        run: |
+          gh auth status
+          gh api user --jq .login
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        id: check
+        run: |
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch upstream "${UPSTREAM_BRANCH}"
+
+          BEHIND=$(git rev-list --count "origin/${FORK_BRANCH}..upstream/${UPSTREAM_BRANCH}")
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          if [ "$BEHIND" -eq 0 ]; then
+            echo "✅ Already up to date"
+            echo "synced=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "🔄 $BEHIND commit(s) behind upstream"
+            echo "synced=false" >> "$GITHUB_OUTPUT"
+            UPSTREAM_SHA=$(git rev-parse --short upstream/${UPSTREAM_BRANCH})
+            echo "sync_branch=sync/upstream-${UPSTREAM_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create sync branch and rebase
+        if: steps.check.outputs.synced == 'false'
+        id: rebase
+        run: |
+          SYNC_BRANCH="${{ steps.check.outputs.sync_branch }}"
+          git checkout -B "$SYNC_BRANCH" "origin/${FORK_BRANCH}"
+
+          FORK_COMMITS=$(git rev-list --count "upstream/${UPSTREAM_BRANCH}..HEAD")
+          echo "fork_commits=$FORK_COMMITS" >> "$GITHUB_OUTPUT"
+
+          if [ "$FORK_COMMITS" -eq 0 ]; then
+            git merge --ff-only "upstream/${UPSTREAM_BRANCH}"
+            echo "status=clean" >> "$GITHUB_OUTPUT"
+          else
+            # Squash all fork commits into one before rebase to minimize conflict passes
+            MERGE_BASE=$(git merge-base HEAD "upstream/${UPSTREAM_BRANCH}")
+            FORK_MSG="fork: squashed customizations ($FORK_COMMITS commits)"
+            git reset --soft "$MERGE_BASE"
+            git commit -m "$FORK_MSG"
+            if git rebase "upstream/${UPSTREAM_BRANCH}"; then
+              echo "status=clean" >> "$GITHUB_OUTPUT"
+            else
+              git rebase --abort || true
+              echo "status=conflict" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Claude resolve conflicts
+        if: steps.rebase.outputs.status == 'conflict'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude -p \
+            --permission-mode bypassPermissions \
+            --allowedTools "Bash(git *)" \
+            --max-turns 200 \
+            "You are resolving a git rebase. You are on branch ${{ steps.check.outputs.sync_branch }}, rebase was aborted.
+
+          Steps:
+          1. git log --oneline upstream/${UPSTREAM_BRANCH}..HEAD   (these are fork-only commits)
+          2. git rebase upstream/${UPSTREAM_BRANCH}
+          3. For each conflict: read files, resolve keeping BOTH upstream and fork changes; fork customizations win on true conflicts. git add, then GIT_EDITOR=true git rebase --continue
+          4. If a fork commit becomes empty: git rebase --skip
+          5. Verify with: git log --oneline -20
+          Do NOT push. Do NOT touch any other branch."
+
+      - name: Push sync branch
+        if: steps.check.outputs.synced == 'false'
+        run: |
+          SYNC_BRANCH="${{ steps.check.outputs.sync_branch }}"
+          git push origin "$SYNC_BRANCH"
+
+      - name: Open or update PR
+        if: steps.check.outputs.synced == 'false'
+        run: |
+          SYNC_BRANCH="${{ steps.check.outputs.sync_branch }}"
+          TITLE="chore: sync ${FORK_BRANCH} with upstream/${UPSTREAM_BRANCH}"
+          BODY=$'Automated smart-fork sync.\n\n- Upstream: `'"${UPSTREAM_REPO}/${UPSTREAM_BRANCH}"$'`\n- Behind by: '"${{ steps.check.outputs.behind }}"$' commit(s)\n- Fork commits preserved on top via rebase.\n\nReview and merge to update `'"${FORK_BRANCH}"$'`.'
+
+          EXISTING=$(gh pr list --head "$SYNC_BRANCH" --base "$FORK_BRANCH" --json number --jq '.[0].number' || true)
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" --title "$TITLE" --body "$BODY"
+          else
+            gh pr create --base "$FORK_BRANCH" --head "$SYNC_BRANCH" --title "$TITLE" --body "$BODY"
+          fi

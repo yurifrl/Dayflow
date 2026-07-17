@@ -3,7 +3,6 @@
 //  Dayflow
 //
 
-import Sparkle
 import SwiftUI
 
 struct AppRootView: View {
@@ -12,16 +11,27 @@ struct AppRootView: View {
   @State private var activeWhatsNewVersion: String? = nil
   @State private var shouldMarkWhatsNewSeen = false
   @State private var goalFlowPresentation: DayGoalFlowPresentation? = nil
+  @StateObject private var obsidianSettings = ObsidianSettingsStore()
+  @StateObject private var autoDailyReportSettings = AutoDailyReportSettingsStore()
+  @StateObject private var autoDailyReportService = AutoDailyReportService.shared
 
   var body: some View {
     ZStack {
       MainView(goalFlowPresentation: $goalFlowPresentation)
         .environmentObject(AppState.shared)
         .environmentObject(categoryStore)
+        .environmentObject(obsidianSettings)
+        .environmentObject(autoDailyReportSettings)
 
       goalFlowOverlay
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .onAppear {
+      autoDailyReportService.start()
+    }
+    .onDisappear {
+      autoDailyReportService.stop()
+    }
     .onAppear {
       guard whatsNewNote == nil else { return }
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -86,19 +96,7 @@ struct AppRootView: View {
     guard let version = activeWhatsNewVersion else { return }
     if shouldMarkWhatsNewSeen {
       WhatsNewConfiguration.markReleaseAsSeen(version: version)
-      AnalyticsService.shared.capture(
-        "whats_new_viewed",
-        [
-          "version": version,
-          "source": "auto",
-        ])
     }
-    AnalyticsService.shared.capture(
-      "whats_new_viewed",
-      [
-        "version": version,
-        "source": "manual",
-      ])
     activeWhatsNewVersion = nil
     shouldMarkWhatsNewSeen = false
   }
@@ -120,13 +118,13 @@ struct DayflowApp: App {
   @StateObject private var categoryStore = CategoryStore()
   @StateObject private var journalCoordinator = JournalCoordinator()
 
-  init() {
-    // Comment out for production - only use for testing onboarding
-    // UserDefaults.standard.set(false, forKey: "didOnboard")
-  }
-
-  // Sparkle updater manager
-  private let updaterManager = UpdaterManager.shared
+    init() {
+        // Comment out for production - only use for testing onboarding
+        // UserDefaults.standard.set(false, forKey: "didOnboard")
+    }
+    
+    // Enterprise updater stub (no network traffic)
+    private let updaterManager = UpdaterManager.shared
 
   var body: some Scene {
     Window("Dayflow", id: "main") {
@@ -171,18 +169,7 @@ struct DayflowApp: App {
 
               dispatchPendingNotificationNavigation(after: 0.3)
             }
-            .opacity(showVideoLaunch ? 1 : 0)
-            .scaleEffect(showVideoLaunch ? 1 : 1.02)
-            .animation(.easeIn(duration: 0.2), value: showVideoLaunch)
-            .onAppear {
-              // Skip video if opening via notification tap
-              if hasPendingNotificationNavigation {
-                showVideoLaunch = false
-                contentOpacity = 1.0
-                contentScale = 1.0
-                dispatchPendingNotificationNavigation(after: 0.1)
-              }
-            }
+            
         }
 
         // Journal onboarding video (full window coverage, above sidebar)

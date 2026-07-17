@@ -272,9 +272,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       pendingDeepLinkURLs.append(contentsOf: urls)
       return
     }
-
     for url in urls {
-      _ = deepLinkRouter?.handle(url)
+      _ = deepLinkRouter!.handle(url)
     }
   }
 

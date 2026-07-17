@@ -30,7 +30,7 @@ struct ChatView: View {
   @State var composerFocusToken = 0
   @Namespace var bottomID
   @AppStorage("dashboardChatProvider") var selectedProviderRaw: String = "gemini"
-  @AppStorage("hasChatBetaAccepted") var hasBetaAccepted: Bool = false
+  @AppStorage("hasChatBetaAccepted") var hasBetaAccepted: Bool = true
   @State var geminiConfigured = false
   @State var codexDetected = false
   @State var claudeDetected = false

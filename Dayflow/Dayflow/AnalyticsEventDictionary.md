@@ -1,6 +1,6 @@
-# Dayflow Analytics Event Dictionary (PostHog)
+# Dayflow Analytics Event Dictionary (Telemetry Disabled)
 
-This document lists manual events, properties, and code locations. All events respect opt-in and are PII-free. Durations and sizes are bucketed.
+This reference is retained for historical context; the enterprise build ships with analytics disabled and the instrumentation stubs are no-ops. If the event pipeline is re-enabled in a future fork, these notes describe the intended payloads.
 
 ## Conventions
 - Event names: snake_case

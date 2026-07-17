@@ -240,7 +240,7 @@ final class ChatService: ObservableObject {
 
     do {
       // Use rich streaming with thinking and tool events
-      let stream = LLMService.shared.generateChatStreaming(request: request)
+      let stream = LLMService.shared.generateDashboardChatStreaming(request)
 
       for try await event in stream {
         switch event {
