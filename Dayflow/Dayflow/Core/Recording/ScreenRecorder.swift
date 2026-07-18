@@ -13,7 +13,6 @@ import CoreGraphics
 import Foundation
 import ImageIO
 @preconcurrency import ScreenCaptureKit
-import Sentry
 
 // MARK: - Configuration
 
