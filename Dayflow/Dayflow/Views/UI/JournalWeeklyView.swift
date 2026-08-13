@@ -36,7 +36,7 @@ struct JournalWeeklyView: View {
           .foregroundStyle(JournalWeeklyTokens.primaryText.opacity(0.85))
 
         Text(summary.description)
-          .font(.custom("Figtree-Regular", size: 14))
+          .font(.custom("Nunito-Regular", size: 14))
           .foregroundStyle(JournalWeeklyTokens.secondaryText)
           .multilineTextAlignment(.center)
           .frame(maxWidth: 520)
@@ -48,11 +48,8 @@ struct JournalWeeklyView: View {
     .padding(.vertical, 34)
     .padding(.horizontal, 38)
     .background(
-      ZStack {
-        Rectangle().fill(.thickMaterial)
-        Color.white.opacity(0.35)
-      }
-      .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+      RoundedRectangle(cornerRadius: 28, style: .continuous)
+        .fill(JournalWeeklyTokens.background)
     )
     .overlay(
       RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -94,7 +91,7 @@ struct JournalWeeklyView: View {
           }
 
           Text("Set reminders")
-            .font(.custom("Figtree-SemiBold", size: 13))
+            .font(.custom("Nunito-SemiBold", size: 13))
             .foregroundStyle(JournalWeeklyTokens.accentText)
         }
         .padding(.horizontal, 18)
@@ -181,7 +178,7 @@ private struct TimelineCanvas: View {
   private func dayNode(for timelinePoint: TimelinePoint) -> some View {
     VStack(spacing: 6) {
       Text(timelinePoint.day.label)
-        .font(.custom("Figtree-SemiBold", size: 13))
+        .font(.custom("Nunito-SemiBold", size: 13))
         .foregroundStyle(timelinePoint.day.isMuted ? JournalWeeklyTokens.secondaryText : .white)
         .frame(width: 28, height: 28)
         .background(
@@ -245,7 +242,7 @@ private struct JournalWeeklyCircleButton: View {
             .shadow(color: Color.black.opacity(0.08), radius: 8, y: 4)
         )
     }
-    .buttonStyle(DayflowPressScaleButtonStyle(pressedScale: 0.97))
+    .buttonStyle(.plain)
     .disabled(isDisabled)
     .opacity(isDisabled ? 0.4 : 1)
     .pointingHandCursor(enabled: !isDisabled)
@@ -261,7 +258,7 @@ private struct JournalWeeklySegmentedControl: View {
       ForEach(options) { option in
         Button(action: { selection = option }) {
           Text(option.rawValue)
-            .font(.custom("Figtree-SemiBold", size: 13))
+            .font(.custom("Nunito-SemiBold", size: 13))
             .foregroundStyle(selection == option ? Color.white : JournalWeeklyTokens.secondaryText)
             .padding(.horizontal, 18)
             .padding(.vertical, 6)
@@ -291,7 +288,7 @@ private struct JournalWeeklyEntryCard: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       Text(entry.summary)
-        .font(.custom("Figtree-Regular", size: 14))
+        .font(.custom("Nunito-Regular", size: 14))
         .foregroundStyle(JournalWeeklyTokens.primaryText)
         .multilineTextAlignment(.leading)
 

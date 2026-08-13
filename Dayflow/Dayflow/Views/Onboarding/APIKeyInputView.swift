@@ -27,12 +27,12 @@ struct APIKeyInputView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       Text(title)
-        .font(.custom("Figtree", size: 16))
+        .font(.custom("Nunito", size: 16))
         .fontWeight(.semibold)
         .foregroundColor(.black.opacity(0.9))
 
       Text(subtitle)
-        .font(.custom("Figtree", size: 14))
+        .font(.custom("Nunito", size: 14))
         .foregroundColor(.black.opacity(0.6))
 
       // Input field container
@@ -50,12 +50,7 @@ struct APIKeyInputView: View {
           .font(.custom("SF Mono", size: 13))
           .focused($isFocused)
           .onChange(of: apiKey) { _, newValue in
-            let cleaned = cleanedAPIKey(newValue)
-            guard cleaned == newValue else {
-              apiKey = cleaned
-              return
-            }
-            validateKey(cleaned)
+            validateKey(newValue)
           }
 
           Button(action: { showPassword.toggle() }) {
@@ -90,8 +85,8 @@ struct APIKeyInputView: View {
 
         // Validation message
         if validationState == .invalid {
-          Text("API key should be more than 10 characters")
-            .font(.custom("Figtree", size: 12))
+          Text("API key should start with 'AIza' and be at least 30 characters")
+            .font(.custom("Nunito", size: 12))
             .foregroundColor(Color(hex: "E91515"))
             .transition(.opacity)
         }
@@ -107,7 +102,7 @@ struct APIKeyInputView: View {
         Text(
           "Your API key is encrypted and stored in your macOS Keychain - never uploaded anywhere"
         )
-        .font(.custom("Figtree", size: 12))
+        .font(.custom("Nunito", size: 12))
         .foregroundColor(.black.opacity(0.5))
       }
     }
@@ -137,9 +132,5 @@ struct APIKeyInputView: View {
     withAnimation(.easeOut(duration: 0.2)) {
       validationState = onValidate(key) ? .valid : .invalid
     }
-  }
-
-  private func cleanedAPIKey(_ key: String) -> String {
-    key.components(separatedBy: .whitespacesAndNewlines).joined()
   }
 }

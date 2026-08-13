@@ -30,7 +30,7 @@ struct JournalRemindersView: View {
           .kerning(-0.22)
           .foregroundColor(JournalReminderTokens.primaryText)
         Text("Set recurring notifications to remind yourself to set your intentions and reflect.")
-          .font(.custom("Figtree-Regular", size: 12))
+          .font(.custom("Nunito-Regular", size: 12))
           .kerning(-0.12)
           .foregroundColor(JournalReminderTokens.primaryText.opacity(0.9))
           .multilineTextAlignment(.center)
@@ -228,7 +228,7 @@ struct JournalRemindersView: View {
         // Also set badge directly after delay (for testing - delegate should also set it)
         try await Task.sleep(nanoseconds: 3_500_000_000)  // 3.5 seconds
         await MainActor.run {
-          NotificationBadgeManager.shared.showJournalBadge()
+          NotificationBadgeManager.shared.showBadge()
           print("[JournalReminders] Badge set directly after test notification")
         }
       } catch {
@@ -248,7 +248,7 @@ struct JournalRemindersView: View {
   ) -> some View {
     HStack(alignment: .center, spacing: 16) {
       Text(label)
-        .font(.custom("Figtree-Regular", size: 14))
+        .font(.custom("Nunito-Regular", size: 14))
         .kerning(-0.14)
         .foregroundColor(JournalReminderTokens.primaryText)
         .frame(width: labelColumnWidth, alignment: .leading)
@@ -256,7 +256,7 @@ struct JournalRemindersView: View {
       HStack(spacing: 8) {
         TimeDigitField(text: hour, field: hourField, focusedField: $focusedField)
         Text(":")
-          .font(.custom("Figtree", size: 14))
+          .font(.custom("Nunito", size: 14))
           .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
           .baselineOffset(-1)
         TimeDigitField(text: minute, field: minuteField, focusedField: $focusedField)
@@ -273,7 +273,7 @@ struct JournalRemindersView: View {
   private var repeatOnRow: some View {
     HStack(alignment: .center, spacing: 8) {
       Text("Repeat on")
-        .font(.custom("Figtree-Regular", size: 14))
+        .font(.custom("Nunito-Regular", size: 14))
         .kerning(-0.14)
         .foregroundColor(JournalReminderTokens.primaryText)
 
@@ -312,7 +312,7 @@ private struct TimeDigitField: View {
           }
         )
       )
-      .font(Font.custom("Figtree-Medium", size: 14))
+      .font(Font.custom("Nunito-Medium", size: 14))
       .multilineTextAlignment(.center)
       .textFieldStyle(.plain)
       .focused(focusedField, equals: field)
@@ -343,7 +343,7 @@ private struct PeriodDropdown: View {
         alignment: .leading
       ) {
         Text(selection.display.uppercased())
-          .font(.custom("Figtree-Medium", size: 14))
+          .font(.custom("Nunito-Medium", size: 14))
           .foregroundColor(JournalReminderTokens.primaryText)
           .lineLimit(1)
           .fixedSize()
@@ -366,7 +366,7 @@ private struct DayChip: View {
   var body: some View {
     Button(action: action) {
       Text(title)
-        .font(.custom("Figtree-Regular", size: 12))
+        .font(.custom("Nunito-Regular", size: 12))
         .kerning(-0.12)
         .frame(width: 32, height: 32)
         .background(
@@ -418,20 +418,15 @@ private struct JournalReminderPillButtonStyle: ButtonStyle {
 
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .font(.custom("Figtree-SemiBold", size: 14))
+      .font(.custom("Nunito-SemiBold", size: 14))
       .padding(.horizontal, 16)
       .padding(.vertical, 6)
-      .background(background)
+      .background(background.opacity(configuration.isPressed ? 0.85 : 1))
       .foregroundColor(foreground)
       .cornerRadius(8)
       .overlay(
         RoundedRectangle(cornerRadius: 8)
           .stroke(borderColor ?? .clear, lineWidth: borderColor == nil ? 0 : 1)
-      )
-      .dayflowPressScale(
-        configuration.isPressed,
-        pressedScale: 0.97,
-        animation: .spring(response: 0.25, dampingFraction: 0.7)
       )
   }
 }

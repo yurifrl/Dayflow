@@ -10,7 +10,6 @@ struct ReferralSurveyView: View {
 
   @State private var internalSelectedReferral: ReferralOption? = nil
   @State private var internalCustomReferral: String = ""
-  @State private var randomizedOptions = ReferralOption.randomizedConcreteOptions()
   @State private var hasSubmitted = false
 
   @Binding private var selectedReferral: ReferralOption?
@@ -43,7 +42,7 @@ struct ReferralSurveyView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Text(prompt)
-        .font(.custom("Figtree", size: 15).weight(.semibold))
+        .font(.custom("Nunito", size: 15).weight(.semibold))
         .foregroundColor(.black.opacity(0.85))
         .fixedSize(horizontal: false, vertical: true)
 
@@ -65,7 +64,7 @@ struct ReferralSurveyView: View {
 
       if showsThankYou && hasSubmitted {
         Label("Thanks for letting me know!", systemImage: "checkmark.circle.fill")
-          .font(.custom("Figtree", size: 14))
+          .font(.custom("Nunito", size: 14))
           .foregroundColor(Color(red: 0.25, green: 0.17, blue: 0))
           .padding(.top, 4)
       }
@@ -77,7 +76,7 @@ struct ReferralSurveyView: View {
             action: handleSubmit,
             content: {
               Text(submitLabel)
-                .font(.custom("Figtree", size: 16))
+                .font(.custom("Nunito", size: 16))
                 .fontWeight(.semibold)
             },
             background: submitBackground,
@@ -102,7 +101,11 @@ struct ReferralSurveyView: View {
   }
 
   private var referralRows: [[ReferralOption]] {
-    (randomizedOptions + [.other]).chunked(into: 2)
+    [
+      [.hackerNews, .x],
+      [.friend, .youtube],
+      [.newsletterBlog, .other],
+    ]
   }
 
   var canSubmit: Bool {
@@ -130,7 +133,7 @@ struct ReferralSurveyView: View {
             .foregroundColor(Color(red: 0.25, green: 0.17, blue: 0))
 
           Text(option.displayName)
-            .font(.custom("Figtree", size: 14))
+            .font(.custom("Nunito", size: 14))
             .foregroundColor(.black.opacity(0.78))
 
           Spacer(minLength: 0)
@@ -166,7 +169,7 @@ struct ReferralSurveyView: View {
   private var detailField: some View {
     TextField(currentDetailPlaceholder, text: $customReferral)
       .textFieldStyle(RoundedBorderTextFieldStyle())
-      .font(.custom("Figtree", size: 13))
+      .font(.custom("Nunito", size: 13))
       .opacity(selectedReferral?.requiresDetail == true ? 1 : 0)
       .disabled(selectedReferral?.requiresDetail != true)
       .allowsHitTesting(selectedReferral?.requiresDetail == true)
@@ -196,14 +199,9 @@ enum ReferralOption: CaseIterable, Identifiable, Hashable {
   case friend
   case youtube
   case newsletterBlog
-  case chatGPTClaudeAI
   case other
 
   var id: String { analyticsValue }
-
-  static func randomizedConcreteOptions() -> [ReferralOption] {
-    allCases.filter { $0 != .other }.shuffled()
-  }
 
   var displayName: String {
     switch self {
@@ -212,8 +210,7 @@ enum ReferralOption: CaseIterable, Identifiable, Hashable {
     case .friend: return "Friend or colleague"
     case .youtube: return "YouTube"
     case .newsletterBlog: return "Newsletter or blog (which one?)"
-    case .chatGPTClaudeAI: return "ChatGPT / Claude / AI"
-    case .other: return "Other (please specify)"
+    case .other: return "Something else"
     }
   }
 
@@ -224,14 +221,13 @@ enum ReferralOption: CaseIterable, Identifiable, Hashable {
     case .friend: return "friend"
     case .youtube: return "youtube"
     case .newsletterBlog: return "newsletter_blog"
-    case .chatGPTClaudeAI: return "chatgpt_claude_ai"
     case .other: return "other"
     }
   }
 
   var requiresDetail: Bool {
     switch self {
-    case .youtube, .newsletterBlog, .chatGPTClaudeAI, .other:
+    case .youtube, .newsletterBlog, .other:
       return true
     default:
       return false
@@ -244,20 +240,10 @@ enum ReferralOption: CaseIterable, Identifiable, Hashable {
       return "Which newsletter or blog?"
     case .youtube:
       return "Which channel?"
-    case .chatGPTClaudeAI:
-      return "What did you ask ChatGPT or Claude that led you to Dayflow?"
     case .other:
-      return "Where did you hear about Dayflow?"
+      return "Tell me more"
     default:
       return ""
-    }
-  }
-}
-
-extension Array {
-  fileprivate func chunked(into size: Int) -> [[Element]] {
-    stride(from: 0, to: count, by: size).map { startIndex in
-      Array(self[startIndex..<Swift.min(startIndex + size, count)])
     }
   }
 }

@@ -97,18 +97,17 @@ struct VideoLaunchView: View {
     ) { _ in
       if self.player?.rate == 0 && !self.hasCompleted {
         // Force resume if paused
-        self.player?.rate = 1.3
+        self.player?.play()
       }
     }
 
-    // Start playing at 1.3x speed
+    // Start playing
     player?.play()
-    player?.rate = 1.3
 
     // Start a timer to continuously check and force playback
     playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
       if self.player?.rate == 0 && !self.hasCompleted {
-        self.player?.rate = 1.3
+        self.player?.play()
       }
     }
 

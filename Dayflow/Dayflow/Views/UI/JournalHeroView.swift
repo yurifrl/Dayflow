@@ -71,14 +71,14 @@ extension JournalHeroView {
 extension JournalHeroView {
   fileprivate var badgeHeader: some View {
     Text(summary.headline)
-      .font(.custom("Figtree-SemiBold", size: 30))
+      .font(.custom("Nunito-SemiBold", size: 30))
       .kerning(-0.4)
       .foregroundStyle(.clear)  // fill via gradient mask
       .overlay(
         JournalHeroTokens.badgeTextGradient
           .mask(
             Text(summary.headline)
-              .font(.custom("Figtree-SemiBold", size: 30))
+              .font(.custom("Nunito-SemiBold", size: 30))
               .kerning(-0.4)
           )
       )
@@ -135,7 +135,7 @@ private struct ReflectButton: View {
   var body: some View {
     Button(action: action) {
       Text(title)
-        .font(.custom("Figtree-SemiBold", size: 15))
+        .font(.custom("Nunito-SemiBold", size: 15))
     }
     .buttonStyle(JournalHeroPillButtonStyle())
   }
@@ -150,18 +150,17 @@ private struct JournalHeroPillButtonStyle: ButtonStyle {
       .foregroundStyle(Color(red: 0.18, green: 0.11, blue: 0.06).opacity(0.8))
       .padding(.horizontal, horizontalPadding)
       .padding(.vertical, verticalPadding)
-      .background(Color(red: 1, green: 0.96, blue: 0.92).opacity(0.6))
+      .background(
+        Color(red: 1, green: 0.96, blue: 0.92).opacity(configuration.isPressed ? 0.7 : 0.6)
+      )
       .cornerRadius(100)
       .overlay(
         RoundedRectangle(cornerRadius: 100)
           .inset(by: 0.5)
           .stroke(Color(red: 0.95, green: 0.86, blue: 0.84), lineWidth: 1)
       )
-      .dayflowPressScale(
-        configuration.isPressed,
-        pressedScale: 0.98,
-        animation: .spring(response: 0.25, dampingFraction: 0.85)
-      )
+      .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+      .animation(.spring(response: 0.25, dampingFraction: 0.85), value: configuration.isPressed)
       .pointingHandCursor()
   }
 }

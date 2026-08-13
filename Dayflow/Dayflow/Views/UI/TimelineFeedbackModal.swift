@@ -12,62 +12,18 @@ enum TimelineFeedbackMode {
   case thanks
 }
 
-struct FeedbackModalContent {
-  let accessibilityLabel: String
-  let accessibilityHint: String
-  let formTitle: String
-  let formSubtitle: String
-  let placeholder: String
-  let shareLogsLabel: String
-  let submitButtonTitle: String
-  let thanksTitle: String
-  let thanksBody: String?
-  let illustrationImageName: String?
-  let illustrationAccessibilityLabel: String?
-
-  static let timeline = FeedbackModalContent(
-    accessibilityLabel: "Timeline feedback form",
-    accessibilityHint: "Share more context after rating this summary.",
-    formTitle: "Thank you!",
-    formSubtitle: "Tell us more about your feedback",
-    placeholder:
-      "I don't have access to your timeline (privacy first!), so your feedback here helps improve the quality of Dayflow for everyone.",
-    shareLogsLabel: "I'd like to share this log to the developer to help improve the product.",
-    submitButtonTitle: "Submit",
-    thanksTitle: "Thank you for your feedback!",
-    thanksBody:
-      "If you find that your activities are summarized inaccurately, try editing the descriptions of your categories to improve Dayflow's accuracy.",
-    illustrationImageName: "CategoryEditUI",
-    illustrationAccessibilityLabel: "Illustration showing how to edit categories"
-  )
-
-  static let chat = FeedbackModalContent(
-    accessibilityLabel: "Chat feedback form",
-    accessibilityHint: "Share more context after rating this chat answer.",
-    formTitle: "Thanks for the report",
-    formSubtitle: "Tell us what went wrong",
-    placeholder:
-      "What was wrong with this answer? If you're comfortable, include what you expected instead.",
-    shareLogsLabel:
-      "I'd like to share this answer and related logs with the developer to help improve the product.",
-    submitButtonTitle: "Submit",
-    thanksTitle: "Thank you for your feedback!",
-    thanksBody: "Your note will help improve future Dashboard answers.",
-    illustrationImageName: nil,
-    illustrationAccessibilityLabel: nil
-  )
-}
-
 struct TimelineFeedbackModal: View {
   @Binding var message: String
   @Binding var shareLogs: Bool
   let direction: TimelineRatingDirection
   let mode: TimelineFeedbackMode
-  let content: FeedbackModalContent
   let onSubmit: () -> Void
   let onClose: () -> Void
 
   @FocusState private var isEditorFocused: Bool
+
+  private let placeholder =
+    "I don’t have access to your timeline (privacy first!), so your feedback here helps improve the quality of Dayflow for everyone."
 
   var body: some View {
     ZStack(alignment: .topTrailing) {
@@ -86,8 +42,8 @@ struct TimelineFeedbackModal: View {
       .offset(x: -8, y: 6)
     }
     .accessibilityElement(children: .contain)
-    .accessibilityLabel(Text(content.accessibilityLabel))
-    .accessibilityHint(Text(content.accessibilityHint))
+    .accessibilityLabel("Timeline feedback form")
+    .accessibilityHint("Share more context after rating this summary.")
   }
 
   @ViewBuilder
@@ -125,13 +81,13 @@ struct TimelineFeedbackModal: View {
   private var formContent: some View {
     VStack(spacing: 16) {
       VStack(spacing: 12) {
-        Text(content.formTitle)
+        Text("Thank you!")
           .font(Font.custom("InstrumentSerif-Regular", size: 18))
           .foregroundColor(Color(hex: "333333"))
           .multilineTextAlignment(.center)
 
-        Text(content.formSubtitle)
-          .font(Font.custom("Figtree", size: 13).weight(.medium))
+        Text("Tell us more about your feedback")
+          .font(Font.custom("Nunito", size: 13).weight(.medium))
           .foregroundColor(Color(hex: "333333"))
           .multilineTextAlignment(.center)
       }
@@ -139,7 +95,7 @@ struct TimelineFeedbackModal: View {
       VStack(spacing: 8) {
         ZStack(alignment: .topLeading) {
           TextEditor(text: $message)
-            .font(Font.custom("Figtree", size: 12).weight(.medium))
+            .font(Font.custom("Nunito", size: 12).weight(.medium))
             .foregroundColor(Color(hex: "333333"))
             .padding(.horizontal, 6)
             .padding(.vertical, 8)
@@ -159,8 +115,8 @@ struct TimelineFeedbackModal: View {
             .scrollContentBackground(.hidden)
 
           if message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            Text(content.placeholder)
-              .font(Font.custom("Figtree", size: 12).weight(.medium))
+            Text(placeholder)
+              .font(Font.custom("Nunito", size: 12).weight(.medium))
               .foregroundColor(Color(hex: "AAAAAA"))
               .padding(.horizontal, 12)
               .padding(.vertical, 12)
@@ -185,8 +141,8 @@ struct TimelineFeedbackModal: View {
                   .fill(shareLogs ? Color(hex: "FF8046") : Color.clear)
               )
 
-            Text(content.shareLogsLabel)
-              .font(Font.custom("Figtree", size: 10).weight(.medium))
+            Text("I’d like to share this log to the developer to help improve the product.")
+              .font(Font.custom("Nunito", size: 10).weight(.medium))
               .foregroundColor(Color.black)
               .fixedSize(horizontal: false, vertical: true)
           }
@@ -198,8 +154,8 @@ struct TimelineFeedbackModal: View {
       }
 
       Button(action: onSubmit) {
-        Text(content.submitButtonTitle)
-          .font(Font.custom("Figtree", size: 12).weight(.medium))
+        Text("Submit")
+          .font(Font.custom("Nunito", size: 12).weight(.medium))
           .foregroundColor(.white)
           .frame(maxWidth: .infinity)
           .frame(height: 30)
@@ -213,34 +169,29 @@ struct TimelineFeedbackModal: View {
 
   private var thanksContent: some View {
     VStack(spacing: 20) {
-      Text(content.thanksTitle)
+      Text("Thank you for your feedback!")
         .font(Font.custom("InstrumentSerif-Regular", size: 18))
         .foregroundColor(Color(hex: "333333"))
         .multilineTextAlignment(.center)
         .padding(.bottom, 4)
 
       VStack(alignment: .leading, spacing: 12) {
-        if let thanksBody = content.thanksBody {
-          Text(thanksBody)
-            .font(Font.custom("Figtree", size: 12).weight(.medium))
-            .foregroundColor(Color(hex: "333333"))
-            .multilineTextAlignment(.leading)
-        }
+        Text(
+          "If you find that your activities are summarized inaccurately, try editing the descriptions of your categories to improve Dayflow’s accuracy."
+        )
+        .font(Font.custom("Nunito", size: 12).weight(.medium))
+        .foregroundColor(Color(hex: "333333"))
+        .multilineTextAlignment(.leading)
 
-        if let illustrationImageName = content.illustrationImageName {
-          feedbackIllustration(
-            imageName: illustrationImageName,
-            accessibilityLabel: content.illustrationAccessibilityLabel
-          )
-        }
+        categoryTipsIllustration
       }
     }
   }
 }
 
 extension TimelineFeedbackModal {
-  private func feedbackIllustration(imageName: String, accessibilityLabel: String?) -> some View {
-    Image(imageName)
+  private var categoryTipsIllustration: some View {
+    Image("CategoryEditUI")
       .resizable()
       .scaledToFit()
       .frame(maxWidth: .infinity)
@@ -251,7 +202,7 @@ extension TimelineFeedbackModal {
           .stroke(Color.white.opacity(0.7), lineWidth: 0.5)
       )
       .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
-      .accessibilityLabel(Text(accessibilityLabel ?? "Feedback illustration"))
+      .accessibilityLabel("Illustration showing how to edit categories")
   }
 }
 
@@ -261,7 +212,6 @@ extension TimelineFeedbackModal {
     shareLogs: .constant(true),
     direction: .up,
     mode: .form,
-    content: .timeline,
     onSubmit: {},
     onClose: {}
   )
@@ -273,7 +223,6 @@ extension TimelineFeedbackModal {
     shareLogs: .constant(true),
     direction: .up,
     mode: .thanks,
-    content: .timeline,
     onSubmit: {},
     onClose: {}
   )

@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import SwiftUI
 
 final class FaviconService {
   static let shared = FaviconService()
@@ -19,26 +18,6 @@ final class FaviconService {
   private let faviconPatterns: [(pattern: String, asset: String)] = [
     // Dayflow
     ("dayflow", "DayflowFavicon"),
-
-    // AI/tools
-    ("chat.openai", "ChatGPTLogo"),
-    ("chatgpt", "ChatGPTLogo"),
-    ("claude", "ClaudeLogo"),
-    ("anthropic", "ClaudeLogo"),
-    ("gemini", "GeminiLogo"),
-    ("github", "GithubIcon"),
-    ("discord", "DiscordGlyph"),
-
-    // Common web apps
-    ("youtube", "YouTubeFavicon"),
-    ("youtu.be", "YouTubeFavicon"),
-    ("reddit", "RedditFavicon"),
-    ("twitter", "XFavicon"),
-    ("x.com", "XFavicon"),
-    ("leagueoflegends", "LeagueOfLegendsFavicon"),
-    ("league of legends", "LeagueOfLegendsFavicon"),
-    ("meet.google", "GoogleFavicon"),
-    ("google meet", "GoogleFavicon"),
 
     // Apple services - specific patterns first
     ("imessage", "iMessageFavicon"),
@@ -136,75 +115,41 @@ final class FaviconService {
   func fetchFavicon(
     primaryRaw: String?, secondaryRaw: String?, primaryHost: String?, secondaryHost: String?
   ) async -> NSImage? {
-    if let img = resolveRawFavicon(primaryRaw) { return img }
+    // First, try single pattern matching against raw strings (preserves paths like /xcode)
+    if let raw = primaryRaw, let img = matchPattern(raw) { return img }
+    if let raw = secondaryRaw, let img = matchPattern(raw) { return img }
+
+    // Then try dual pattern matching (requires both patterns, e.g., "mail" + "apple")
+    if let raw = primaryRaw, let img = matchDualPattern(raw) { return img }
+    if let raw = secondaryRaw, let img = matchDualPattern(raw) { return img }
+
+    // Fall back to network fetch using normalized hosts
     if let host = primaryHost, let img = await fetchHost(host) { return img }
-    if let img = resolveRawFavicon(secondaryRaw) { return img }
     if let host = secondaryHost, let img = await fetchHost(host) { return img }
     return nil
   }
 
-  func cachedOrRawFavicon(
-    primaryRaw: String?,
-    secondaryRaw: String?,
-    primaryHost: String?,
-    secondaryHost: String?
-  ) -> NSImage? {
-    if let img = resolveRawFavicon(primaryRaw) { return img }
-    if let host = primaryHost, let img = cachedHostFavicon(host) { return img }
-    if let img = resolveRawFavicon(secondaryRaw) { return img }
-    if let host = secondaryHost, let img = cachedHostFavicon(host) { return img }
-    return nil
-  }
-
-  func hasRawFaviconOverride(_ raw: String?) -> Bool {
-    assetName(forRaw: raw) != nil
-  }
-
-  static func normalizedHost(from site: String?) -> String? {
-    guard var site, !site.isEmpty else { return nil }
-    site = site.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    if let url = URL(string: site), let host = url.host {
-      return host
-    }
-    if site.contains("://"), let url = URL(string: site), let host = url.host {
-      return host
-    }
-    if site.contains("/"), let url = URL(string: "https://" + site), let host = url.host {
-      return host
-    }
-    if !site.contains(".") {
-      return site + ".com"
-    }
-    return site
-  }
-
-  private func resolveRawFavicon(_ raw: String?) -> NSImage? {
-    guard let assetName = assetName(forRaw: raw) else { return nil }
-    return NSImage(named: assetName)
-  }
-
-  private func assetName(forRaw raw: String?) -> String? {
-    guard let raw else { return nil }
-    return matchPattern(raw) ?? matchDualPattern(raw)
-  }
-
   /// Check raw string against hardcoded patterns (no network fetch)
-  private func matchPattern(_ raw: String) -> String? {
+  private func matchPattern(_ raw: String) -> NSImage? {
     let rawLower = raw.lowercased()
     for (pattern, assetName) in faviconPatterns {
       if rawLower.contains(pattern) {
-        return assetName
+        if let img = NSImage(named: assetName) {
+          return img
+        }
       }
     }
     return nil
   }
 
   /// Check raw string against dual patterns (requires BOTH patterns to match)
-  private func matchDualPattern(_ raw: String) -> String? {
+  private func matchDualPattern(_ raw: String) -> NSImage? {
     let rawLower = raw.lowercased()
     for (pattern1, pattern2, assetName) in faviconDualPatterns {
       if rawLower.contains(pattern1) && rawLower.contains(pattern2) {
-        return assetName
+        if let img = NSImage(named: assetName) {
+          return img
+        }
       }
     }
     return nil
@@ -325,11 +270,6 @@ final class FaviconService {
     return task
   }
 
-  private func cachedHostFavicon(_ host: String) -> NSImage? {
-    let resolvedHost = resolvedHostAlias(for: host)
-    return cache.object(forKey: resolvedHost as NSString)
-  }
-
   private func storeTask(_ task: Task<NSImage?, Never>, for host: String) {
     inFlightLock.lock()
     inFlight[host] = task
@@ -340,112 +280,5 @@ final class FaviconService {
     inFlightLock.lock()
     inFlight[host] = nil
     inFlightLock.unlock()
-  }
-}
-
-struct FaviconImageView: View {
-  let primaryRaw: String?
-  let secondaryRaw: String?
-  let primaryHost: String?
-  let secondaryHost: String?
-  let fallbackRaw: String?
-  let size: CGFloat
-  let cornerRadius: CGFloat
-
-  @State private var image: NSImage?
-
-  init(
-    primaryRaw: String?,
-    secondaryRaw: String?,
-    primaryHost: String?,
-    secondaryHost: String?,
-    fallbackRaw: String? = nil,
-    size: CGFloat,
-    cornerRadius: CGFloat = 2
-  ) {
-    self.primaryRaw = primaryRaw
-    self.secondaryRaw = secondaryRaw
-    self.primaryHost = primaryHost
-    self.secondaryHost = secondaryHost
-    self.fallbackRaw = fallbackRaw
-    self.size = size
-    self.cornerRadius = cornerRadius
-    self._image = State(
-      initialValue: FaviconService.shared.cachedOrRawFavicon(
-        primaryRaw: Self.effectivePrimaryRaw(primaryRaw: primaryRaw, fallbackRaw: fallbackRaw),
-        secondaryRaw: secondaryRaw,
-        primaryHost: primaryHost,
-        secondaryHost: secondaryHost
-      )
-    )
-  }
-
-  var body: some View {
-    Group {
-      if let image {
-        Image(nsImage: image)
-          .resizable()
-          .interpolation(.high)
-          .aspectRatio(contentMode: .fit)
-          .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-      } else {
-        Color.clear
-      }
-    }
-    .frame(width: size, height: size)
-    .task(id: requestKey) {
-      let initialImage = FaviconService.shared.cachedOrRawFavicon(
-        primaryRaw: effectivePrimaryRaw,
-        secondaryRaw: secondaryRaw,
-        primaryHost: primaryHost,
-        secondaryHost: secondaryHost
-      )
-      image = initialImage
-      guard hasLookupSource else { return }
-      image =
-        await FaviconService.shared.fetchFavicon(
-          primaryRaw: effectivePrimaryRaw,
-          secondaryRaw: secondaryRaw,
-          primaryHost: primaryHost,
-          secondaryHost: secondaryHost
-        ) ?? initialImage
-    }
-  }
-
-  private var effectivePrimaryRaw: String? {
-    nonEmpty(primaryRaw) ?? nonEmpty(fallbackRaw)
-  }
-
-  private var hasLookupSource: Bool {
-    effectivePrimaryRaw != nil || nonEmpty(secondaryRaw) != nil
-      || nonEmpty(primaryHost) != nil || nonEmpty(secondaryHost) != nil
-  }
-
-  private var requestKey: String {
-    [
-      effectivePrimaryRaw,
-      nonEmpty(secondaryRaw),
-      nonEmpty(primaryHost),
-      nonEmpty(secondaryHost),
-    ]
-    .map { $0 ?? "" }
-    .joined(separator: "|")
-  }
-
-  private func nonEmpty(_ value: String?) -> String? {
-    Self.nonEmpty(value)
-  }
-
-  private static func effectivePrimaryRaw(primaryRaw: String?, fallbackRaw: String?) -> String? {
-    nonEmpty(primaryRaw) ?? nonEmpty(fallbackRaw)
-  }
-
-  private static func nonEmpty(_ value: String?) -> String? {
-    guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-      !trimmed.isEmpty
-    else {
-      return nil
-    }
-    return trimmed
   }
 }

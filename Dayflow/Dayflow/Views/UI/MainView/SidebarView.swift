@@ -18,9 +18,7 @@ private enum SidebarMetrics {
 enum SidebarIcon: CaseIterable {
   case timeline
   case daily
-  case weekly
   case chat
-  case agents
   case journal
   case bug
   case settings
@@ -29,9 +27,7 @@ enum SidebarIcon: CaseIterable {
     switch self {
     case .timeline: return "TimelineIcon"
     case .daily: return "DailyIcon"
-    case .weekly: return "WeeklyIcon"
     case .chat: return "ChatIcon"
-    case .agents: return nil
     case .journal: return "JournalIcon"
     case .bug: return nil
     case .settings: return nil
@@ -40,9 +36,8 @@ enum SidebarIcon: CaseIterable {
 
   var systemNameFallback: String? {
     switch self {
-    case .agents: return "sparkles"
-    case .bug: return "exclamationmark.bubble.fill"
-    case .settings: return "gearshape.fill"
+    case .bug: return "exclamationmark.bubble"
+    case .settings: return "gearshape"
     default: return nil
     }
   }
@@ -51,25 +46,10 @@ enum SidebarIcon: CaseIterable {
     switch self {
     case .timeline: return "Timeline"
     case .daily: return "Daily"
-    case .weekly: return "Weekly"
     case .chat: return "Chat"
-    case .agents: return "Agents"
     case .journal: return "Journal"
     case .bug: return "Report"
     case .settings: return "Settings"
-    }
-  }
-
-  var analyticsTabName: String {
-    switch self {
-    case .timeline: return "timeline"
-    case .daily: return "daily"
-    case .weekly: return "weekly"
-    case .chat: return "dashboard"
-    case .agents: return "agents"
-    case .journal: return "journal"
-    case .bug: return "bug_report"
-    case .settings: return "settings"
     }
   }
 }
@@ -78,34 +58,17 @@ struct SidebarView: View {
   @Binding var selectedIcon: SidebarIcon
   @ObservedObject private var badgeManager = NotificationBadgeManager.shared
 
-  private var visibleIcons: [SidebarIcon] {
-    SidebarIcon.allCases.filter { icon in
-      icon != .journal && icon != .agents
-    }
-  }
-
   var body: some View {
     VStack(alignment: .center, spacing: SidebarMetrics.itemSpacing) {
-      ForEach(visibleIcons, id: \.self) { icon in
+      ForEach(SidebarIcon.allCases, id: \.self) { icon in
         SidebarIconButton(
           icon: icon,
           isSelected: selectedIcon == icon,
-          showBadge: shouldShowBadge(for: icon),
+          showBadge: icon == .journal && badgeManager.hasPendingReminder,
           action: { selectedIcon = icon }
         )
         .frame(width: SidebarMetrics.itemSize, height: SidebarMetrics.itemSize)
       }
-    }
-  }
-
-  private func shouldShowBadge(for icon: SidebarIcon) -> Bool {
-    switch icon {
-    case .journal:
-      return badgeManager.hasPendingJournalReminder
-    case .daily:
-      return badgeManager.hasPendingDailyRecap
-    default:
-      return false
     }
   }
 }
@@ -158,7 +121,7 @@ struct SidebarIconButton: View {
         .frame(width: SidebarMetrics.iconContainerSize, height: SidebarMetrics.iconContainerSize)
 
         Text(icon.displayName)
-          .font(.custom("Figtree", size: SidebarMetrics.labelFontSize))
+          .font(.custom("Nunito", size: SidebarMetrics.labelFontSize))
           .lineLimit(1)
           .minimumScaleFactor(0.75)
           .foregroundColor(
@@ -167,7 +130,7 @@ struct SidebarIconButton: View {
       .frame(width: SidebarMetrics.itemSize, height: SidebarMetrics.itemSize)
       .contentShape(Rectangle())
     }
-    .buttonStyle(DayflowPressScaleButtonStyle())
+    .buttonStyle(PlainButtonStyle())
     .contentShape(Rectangle())
     .hoverScaleEffect(scale: 1.02)
     .pointingHandCursor()

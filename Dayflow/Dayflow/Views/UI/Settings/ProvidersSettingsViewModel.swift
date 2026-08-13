@@ -3,850 +3,887 @@ import SwiftUI
 
 @MainActor
 final class ProvidersSettingsViewModel: ObservableObject {
-  @Published private(set) var routing = LLMProviderRouting(primary: .gemini)
-  @Published private(set) var hasLoadedRouting = false
-  @Published var setupModalProvider: LLMProviderID? {
-    didSet {
-      if setupModalProvider == nil {
+    @Published var currentProvider: String = "gemini" {
+        didSet {
+            guard oldValue != currentProvider else { return }
+            applyProviderChangeSideEffects(for: currentProvider)
+        }
+    }
+    @Published var backupProvider: String?
+    @Published var backupChatCLITool: CLITool?
+    @Published var setupModalProvider: String? {
+        didSet {
+            if setupModalProvider == nil {
+                pendingSetupRole = nil
+                pendingSetupDisplayProviderId = nil
+            }
+        }
+    }
+
+    @Published var selectedGeminiModel: GeminiModel
+    @Published var localEngine: LocalEngine {
+        didSet {
+            guard oldValue != localEngine else { return }
+            UserDefaults.standard.set(localEngine.rawValue, forKey: "llmLocalEngine")
+            LocalModelPreferences.syncPreset(for: localEngine, modelId: localModelId)
+            refreshUpgradeBannerState()
+        }
+    }
+    @Published var localBaseURL: String {
+        didSet {
+            guard oldValue != localBaseURL else { return }
+            UserDefaults.standard.set(localBaseURL, forKey: "llmLocalBaseURL")
+        }
+    }
+    @Published var localModelId: String {
+        didSet {
+            guard oldValue != localModelId else { return }
+            UserDefaults.standard.set(localModelId, forKey: "llmLocalModelId")
+            LocalModelPreferences.syncPreset(for: localEngine, modelId: localModelId)
+            refreshUpgradeBannerState()
+        }
+    }
+    @Published var localAPIKey: String {
+        didSet {
+            guard oldValue != localAPIKey else { return }
+            persistLocalAPIKey(localAPIKey)
+        }
+    }
+    @Published var showLocalModelUpgradeBanner = false
+    @Published var isShowingLocalModelUpgradeSheet = false
+    @Published var upgradeStatusMessage: String?
+    @Published var preferredCLITool: CLITool?
+
+    @Published var geminiPromptOverridesLoaded = false
+    @Published var isUpdatingGeminiPromptState = false
+    @Published var useCustomGeminiTitlePrompt = false { didSet { persistGeminiPromptOverridesIfReady() } }
+    @Published var useCustomGeminiSummaryPrompt = false { didSet { persistGeminiPromptOverridesIfReady() } }
+    @Published var useCustomGeminiDetailedPrompt = false { didSet { persistGeminiPromptOverridesIfReady() } }
+    @Published var geminiTitlePromptText = GeminiPromptDefaults.titleBlock { didSet { persistGeminiPromptOverridesIfReady() } }
+    @Published var geminiSummaryPromptText = GeminiPromptDefaults.summaryBlock { didSet { persistGeminiPromptOverridesIfReady() } }
+    @Published var geminiDetailedPromptText = GeminiPromptDefaults.detailedSummaryBlock { didSet { persistGeminiPromptOverridesIfReady() } }
+
+    @Published var ollamaPromptOverridesLoaded = false
+    @Published var isUpdatingOllamaPromptState = false
+    @Published var useCustomOllamaTitlePrompt = false { didSet { persistOllamaPromptOverridesIfReady() } }
+    @Published var useCustomOllamaSummaryPrompt = false { didSet { persistOllamaPromptOverridesIfReady() } }
+    @Published var ollamaTitlePromptText = OllamaPromptDefaults.titleBlock { didSet { persistOllamaPromptOverridesIfReady() } }
+    @Published var ollamaSummaryPromptText = OllamaPromptDefaults.summaryBlock { didSet { persistOllamaPromptOverridesIfReady() } }
+
+    @Published var chatCLIPromptOverridesLoaded = false
+    @Published var isUpdatingChatCLIPromptState = false
+    @Published var useCustomChatCLITitlePrompt = false { didSet { persistChatCLIPromptOverridesIfReady() } }
+    @Published var useCustomChatCLISummaryPrompt = false { didSet { persistChatCLIPromptOverridesIfReady() } }
+    @Published var useCustomChatCLIDetailedPrompt = false { didSet { persistChatCLIPromptOverridesIfReady() } }
+    @Published var chatCLITitlePromptText = ChatCLIPromptDefaults.titleBlock { didSet { persistChatCLIPromptOverridesIfReady() } }
+    @Published var chatCLISummaryPromptText = ChatCLIPromptDefaults.summaryBlock { didSet { persistChatCLIPromptOverridesIfReady() } }
+    @Published var chatCLIDetailedPromptText = ChatCLIPromptDefaults.detailedSummaryBlock { didSet { persistChatCLIPromptOverridesIfReady() } }
+
+    private var hasLoadedProvider = false
+    private var savedGeminiModel: GeminiModel
+    private var pendingSetupRole: ProviderRoutingRole?
+    private var pendingSetupDisplayProviderId: String?
+
+    init() {
+        let preference = GeminiModelPreference.load()
+        selectedGeminiModel = preference.primary
+        savedGeminiModel = preference.primary
+
+        let rawEngine = UserDefaults.standard.string(forKey: "llmLocalEngine") ?? "ollama"
+        let engine = LocalEngine(rawValue: rawEngine) ?? .ollama
+        localEngine = engine
+        localBaseURL = UserDefaults.standard.string(forKey: "llmLocalBaseURL") ?? LocalEngine.ollama.defaultBaseURL
+
+        let defaults = UserDefaults.standard
+        let storedModel = defaults.string(forKey: "llmLocalModelId") ?? ""
+        if storedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            localModelId = LocalModelPreferences.defaultModelId(for: engine)
+        } else {
+            localModelId = storedModel
+        }
+
+        localAPIKey = UserDefaults.standard.string(forKey: "llmLocalAPIKey") ?? ""
+        if let raw = UserDefaults.standard.string(forKey: "chatCLIPreferredTool") {
+            preferredCLITool = CLITool(rawValue: raw)
+        } else {
+            preferredCLITool = nil
+        }
+    }
+
+    func handleOnAppear() {
+        loadCurrentProvider()
+        loadBackupProvider()
+        reloadLocalProviderSettings()
+        LocalModelPreferences.syncPreset(for: localEngine, modelId: localModelId)
+        refreshUpgradeBannerState()
+        loadGeminiPromptOverridesIfNeeded()
+        loadOllamaPromptOverridesIfNeeded()
+        loadChatCLIPromptOverridesIfNeeded()
+    }
+
+    func handleLocalTestCompletion() {
+        UserDefaults.standard.set(localBaseURL, forKey: "llmLocalBaseURL")
+        UserDefaults.standard.set(localModelId, forKey: "llmLocalModelId")
+        LocalModelPreferences.syncPreset(for: localEngine, modelId: localModelId)
+        persistLocalAPIKey(localAPIKey)
+        refreshUpgradeBannerState()
+    }
+
+    func markUpgradeBannerKeepLegacy() {
+        LocalModelPreferences.markUpgradeDismissed(true)
+        showLocalModelUpgradeBanner = false
+    }
+
+    func markUpgradeBannerUpgrade() {
+        LocalModelPreferences.markUpgradeDismissed(false)
+    }
+
+    func applyProviderChangeSideEffects(for provider: String) {
+        reloadLocalProviderSettings()
+        ensureBackupProviderIsValid(primaryProvider: provider)
+        if provider == "gemini" {
+            loadGeminiPromptOverridesIfNeeded(force: true)
+        } else if provider == "ollama" {
+            loadOllamaPromptOverridesIfNeeded(force: true)
+        } else if provider == "chatgpt_claude" {
+            loadChatCLIPromptOverridesIfNeeded(force: true)
+        }
+        refreshUpgradeBannerState()
+    }
+
+    func reloadLocalProviderSettings() {
+        localBaseURL = UserDefaults.standard.string(forKey: "llmLocalBaseURL") ?? localBaseURL
+        localModelId = UserDefaults.standard.string(forKey: "llmLocalModelId") ?? localModelId
+        localAPIKey = UserDefaults.standard.string(forKey: "llmLocalAPIKey") ?? localAPIKey
+        let raw = UserDefaults.standard.string(forKey: "llmLocalEngine") ?? localEngine.rawValue
+        localEngine = LocalEngine(rawValue: raw) ?? localEngine
+        LocalModelPreferences.syncPreset(for: localEngine, modelId: localModelId)
+    }
+
+    var usingRecommendedLocalModel: Bool {
+        let comparisonEngine = localEngine == .custom ? .ollama : localEngine
+        let normalized = localModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let recommended = LocalModelPreset.recommended.modelId(for: comparisonEngine)
+        if normalized.caseInsensitiveCompare(recommended) == .orderedSame {
+            return true
+        }
+        return LocalModelPreferences.currentPreset() == .qwen3VL4B
+    }
+
+    func refreshUpgradeBannerState() {
+        let shouldShow = LocalModelPreferences.shouldShowUpgradeBanner(engine: localEngine, modelId: localModelId)
+        showLocalModelUpgradeBanner = shouldShow && currentProvider == "ollama"
+    }
+
+    func handleUpgradeSuccess(engine: LocalEngine, baseURL: String, modelId: String, apiKey: String) {
+        let normalizedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        localEngine = engine
+        localBaseURL = baseURL
+        localModelId = modelId
+        localAPIKey = normalizedKey
+        UserDefaults.standard.set(baseURL, forKey: "llmLocalBaseURL")
+        UserDefaults.standard.set(modelId, forKey: "llmLocalModelId")
+        UserDefaults.standard.set(engine.rawValue, forKey: "llmLocalEngine")
+        persistLocalAPIKey(normalizedKey)
+        LocalModelPreferences.syncPreset(for: engine, modelId: modelId)
+        LocalModelPreferences.markUpgradeDismissed(true)
+        refreshUpgradeBannerState()
+        upgradeStatusMessage = "Upgraded to \(LocalModelPreset.recommended.displayName)"
+        AnalyticsService.shared.capture("local_model_upgraded", [
+            "engine": engine.rawValue,
+            "model": modelId
+        ])
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            self?.upgradeStatusMessage = nil
+        }
+    }
+
+    func persistLocalAPIKey(_ value: String) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            UserDefaults.standard.removeObject(forKey: "llmLocalAPIKey")
+        } else {
+            UserDefaults.standard.set(trimmed, forKey: "llmLocalAPIKey")
+        }
+    }
+
+    func loadCurrentProvider() {
+        guard !hasLoadedProvider else { return }
+
+        if let data = UserDefaults.standard.data(forKey: "llmProviderType"),
+           let providerType = try? JSONDecoder().decode(LLMProviderType.self, from: data) {
+            switch providerType {
+            case .geminiDirect:
+                currentProvider = "gemini"
+                let preference = GeminiModelPreference.load()
+                selectedGeminiModel = preference.primary
+                savedGeminiModel = preference.primary
+            case .ollamaLocal:
+                currentProvider = "ollama"
+            case .chatGPTClaude:
+                currentProvider = "chatgpt_claude"
+            }
+        }
+        hasLoadedProvider = true
+    }
+
+    func loadBackupProvider() {
+        let stored = LLMProviderRoutingPreferences.loadBackupProvider()
+        guard let stored else {
+            backupProvider = nil
+            backupChatCLITool = nil
+            return
+        }
+
+        let raw = stored.rawValue
+        guard raw != currentProvider else {
+            backupProvider = nil
+            backupChatCLITool = nil
+            LLMProviderRoutingPreferences.saveBackupProvider(nil)
+            LLMProviderRoutingPreferences.saveBackupChatCLITool(nil)
+            return
+        }
+
+
+        backupProvider = raw
+        if stored == .chatGPTClaude {
+            let backupTool = LLMProviderRoutingPreferences.loadBackupChatCLITool()
+            backupChatCLITool = backupTool.flatMap { CLITool(rawValue: $0.rawValue) } ?? preferredCLITool
+        } else {
+            backupChatCLITool = nil
+            LLMProviderRoutingPreferences.saveBackupChatCLITool(nil)
+        }
+    }
+
+    var routingProviders: [CompactProviderInfo] {
+        providerCatalog
+    }
+
+    func beginProviderSetup(_ providerId: String, role: ProviderRoutingRole) {
+        guard providerCatalog.contains(where: { $0.id == providerId }) else { return }
+        pendingSetupRole = role
+        pendingSetupDisplayProviderId = providerId
+        setupModalProvider = canonicalProviderId(for: providerId)
+    }
+
+    func editProviderConfiguration(_ providerId: String) {
+        guard providerCatalog.contains(where: { $0.id == providerId }) else { return }
+        pendingSetupRole = .setupOnly
+        pendingSetupDisplayProviderId = providerId
+        setupModalProvider = canonicalProviderId(for: providerId)
+    }
+
+    func handleProviderSetupCompletion(_ providerId: String) {
+        recordProviderSetupCompleted(providerId)
+
+        let role = pendingSetupRole ?? .setupOnly
+        let displayProviderId = pendingSetupDisplayProviderId ?? displayProviderId(
+            canonicalProviderId: providerId,
+            preferredTool: preferredCLITool
+        )
         pendingSetupRole = nil
-      }
-    }
-  }
-  @Published var providerRoutingErrorMessage: String?
+        pendingSetupDisplayProviderId = nil
 
-  @Published var selectedGeminiModel: GeminiModel
-  @Published var localEngine: LocalEngine {
-    didSet {
-      guard oldValue != localEngine else { return }
-      UserDefaults.standard.set(localEngine.rawValue, forKey: "llmLocalEngine")
-      LocalModelPreferences.syncPreset(for: localEngine, modelId: localModelId)
-      refreshUpgradeBannerState()
-    }
-  }
-  @Published var localBaseURL: String {
-    didSet {
-      guard oldValue != localBaseURL else { return }
-      UserDefaults.standard.set(localBaseURL, forKey: "llmLocalBaseURL")
-    }
-  }
-  @Published var localModelId: String {
-    didSet {
-      guard oldValue != localModelId else { return }
-      UserDefaults.standard.set(localModelId, forKey: "llmLocalModelId")
-      LocalModelPreferences.syncPreset(for: localEngine, modelId: localModelId)
-      refreshUpgradeBannerState()
-    }
-  }
-  @Published var localAPIKey: String {
-    didSet {
-      guard oldValue != localAPIKey else { return }
-      persistLocalAPIKey(localAPIKey)
-    }
-  }
-  @Published var localTestBaseURL = ""
-  @Published var localTestModelID = ""
-  @Published var localTestAPIKey = ""
-  @Published var showLocalModelUpgradeBanner = false
-  @Published var isShowingLocalModelUpgradeSheet = false
-  @Published var upgradeStatusMessage: String?
-  @Published private(set) var openAICompatiblePreset: OpenAICompatiblePreset = .openRouter
-  @Published private(set) var openAICompatibleBaseURL =
-    OpenAICompatibleConfiguration.openRouterBaseURL
-  @Published private(set) var openAICompatibleModelID = ""
-  @Published private(set) var openAICompatibleAPIKey = ""
-  @Published private(set) var codexCLIInstalled = false
-  @Published private(set) var claudeCLIInstalled = false
-  @Published private(set) var isCheckingCLIReadiness = false
-
-  @Published var geminiPromptOverridesLoaded = false
-  @Published var isUpdatingGeminiPromptState = false
-  @Published var useCustomGeminiTitlePrompt = false {
-    didSet { persistGeminiPromptOverridesIfReady() }
-  }
-  @Published var useCustomGeminiSummaryPrompt = false {
-    didSet { persistGeminiPromptOverridesIfReady() }
-  }
-  @Published var useCustomGeminiDetailedPrompt = false {
-    didSet { persistGeminiPromptOverridesIfReady() }
-  }
-  @Published var geminiTitlePromptText = GeminiPromptDefaults.titleBlock {
-    didSet { persistGeminiPromptOverridesIfReady() }
-  }
-  @Published var geminiSummaryPromptText = GeminiPromptDefaults.summaryBlock {
-    didSet { persistGeminiPromptOverridesIfReady() }
-  }
-  @Published var geminiDetailedPromptText = GeminiPromptDefaults.detailedSummaryBlock {
-    didSet { persistGeminiPromptOverridesIfReady() }
-  }
-
-  @Published var ollamaPromptOverridesLoaded = false
-  @Published var isUpdatingOllamaPromptState = false
-  @Published var useCustomOllamaTitlePrompt = false {
-    didSet { persistOllamaPromptOverridesIfReady() }
-  }
-  @Published var useCustomOllamaSummaryPrompt = false {
-    didSet { persistOllamaPromptOverridesIfReady() }
-  }
-  @Published var ollamaTitlePromptText = OllamaPromptDefaults.titleBlock {
-    didSet { persistOllamaPromptOverridesIfReady() }
-  }
-  @Published var ollamaSummaryPromptText = OllamaPromptDefaults.summaryBlock {
-    didSet { persistOllamaPromptOverridesIfReady() }
-  }
-
-  @Published var agentPromptOverridesLoaded = false
-  @Published var isUpdatingAgentPromptState = false
-  @Published var useCustomAgentTitlePrompt = false {
-    didSet { persistAgentPromptOverridesIfReady() }
-  }
-  @Published var useCustomAgentSummaryPrompt = false {
-    didSet { persistAgentPromptOverridesIfReady() }
-  }
-  @Published var useCustomAgentDetailedPrompt = false {
-    didSet { persistAgentPromptOverridesIfReady() }
-  }
-  @Published var agentTitlePromptText = CodexPromptDefaults.titleBlock {
-    didSet { persistAgentPromptOverridesIfReady() }
-  }
-  @Published var agentSummaryPromptText = CodexPromptDefaults.summaryBlock {
-    didSet { persistAgentPromptOverridesIfReady() }
-  }
-  @Published var agentDetailedPromptText = CodexPromptDefaults.detailedSummaryBlock {
-    didSet { persistAgentPromptOverridesIfReady() }
-  }
-  @Published var selectedAgentPromptProvider: LLMProviderID = .chatGPT {
-    didSet {
-      guard oldValue != selectedAgentPromptProvider else { return }
-      guard selectedAgentPromptProvider == .chatGPT || selectedAgentPromptProvider == .claude else {
-        selectedAgentPromptProvider = oldValue
-        return
-      }
-      loadAgentPromptOverridesIfNeeded(force: true)
-    }
-  }
-
-  private var savedGeminiModel: GeminiModel
-  private var pendingSetupRole: ProviderRoutingRole?
-
-  init() {
-    let preference = GeminiModelPreference.load()
-    selectedGeminiModel = preference.primary
-    savedGeminiModel = preference.primary
-
-    let rawEngine = UserDefaults.standard.string(forKey: "llmLocalEngine") ?? "ollama"
-    let engine = LocalEngine(rawValue: rawEngine) ?? .ollama
-    localEngine = engine
-    localBaseURL =
-      UserDefaults.standard.string(forKey: "llmLocalBaseURL") ?? LocalEngine.ollama.defaultBaseURL
-
-    let defaults = UserDefaults.standard
-    let storedModel = defaults.string(forKey: "llmLocalModelId") ?? ""
-    if storedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      localModelId = LocalModelPreferences.defaultModelId(for: engine)
-    } else {
-      localModelId = storedModel
+        switch role {
+        case .primary:
+            assignPrimaryProvider(displayProviderId)
+        case .secondary:
+            assignSecondaryProvider(displayProviderId)
+        case .setupOnly:
+            break
+        }
     }
 
-    localAPIKey = UserDefaults.standard.string(forKey: "llmLocalAPIKey") ?? ""
-    localTestBaseURL = localBaseURL
-    localTestModelID = localModelId
-    localTestAPIKey = localAPIKey
-
-    if let configuration = OpenAICompatiblePreferences.load() {
-      openAICompatiblePreset = configuration.preset
-      openAICompatibleBaseURL = configuration.baseURL
-      openAICompatibleModelID = configuration.modelID
-    }
-    openAICompatibleAPIKey =
-      KeychainManager.shared.retrieve(for: OpenAICompatiblePreferences.keychainProvider) ?? ""
-  }
-
-  func handleOnAppear() {
-    DayflowAuthManager.shared.loadStoredSessionIfNeeded()
-    loadRouting()
-    reloadLocalProviderSettings()
-    reloadOpenAICompatibleSettings()
-    refreshCLIReadiness()
-    LocalModelPreferences.syncPreset(for: localEngine, modelId: localModelId)
-    refreshUpgradeBannerState()
-    loadGeminiPromptOverridesIfNeeded()
-    loadOllamaPromptOverridesIfNeeded()
-    if currentProvider == .chatGPT || currentProvider == .claude {
-      selectedAgentPromptProvider = currentProvider
-    } else {
-      loadAgentPromptOverridesIfNeeded()
-    }
-  }
-
-  func handleLocalTestCompletion(success: Bool) {
-    guard success else { return }
-
-    localBaseURL = localTestBaseURL
-    localModelId = localTestModelID
-    localAPIKey = localTestAPIKey
-    UserDefaults.standard.set(localTestBaseURL, forKey: "llmLocalBaseURL")
-    UserDefaults.standard.set(localTestModelID, forKey: "llmLocalModelId")
-    LocalModelPreferences.syncPreset(for: localEngine, modelId: localModelId)
-    persistLocalAPIKey(localTestAPIKey)
-    refreshUpgradeBannerState()
-  }
-
-  func markUpgradeBannerKeepLegacy() {
-    LocalModelPreferences.markUpgradeDismissed(true)
-    showLocalModelUpgradeBanner = false
-  }
-
-  func markUpgradeBannerUpgrade() {
-    LocalModelPreferences.markUpgradeDismissed(false)
-  }
-
-  func applyProviderChangeSideEffects(for provider: LLMProviderID) {
-    reloadLocalProviderSettings()
-    reloadOpenAICompatibleSettings()
-    if provider == .gemini {
-      loadGeminiPromptOverridesIfNeeded(force: true)
-    } else if provider == .local {
-      loadOllamaPromptOverridesIfNeeded(force: true)
-    } else if provider == .chatGPT || provider == .claude {
-      selectedAgentPromptProvider = provider
-      loadAgentPromptOverridesIfNeeded(force: true)
-    }
-    refreshUpgradeBannerState()
-  }
-
-  func reloadLocalProviderSettings() {
-    localBaseURL = UserDefaults.standard.string(forKey: "llmLocalBaseURL") ?? localBaseURL
-    localModelId = UserDefaults.standard.string(forKey: "llmLocalModelId") ?? localModelId
-    localAPIKey = UserDefaults.standard.string(forKey: "llmLocalAPIKey") ?? localAPIKey
-    let raw = UserDefaults.standard.string(forKey: "llmLocalEngine") ?? localEngine.rawValue
-    localEngine = LocalEngine(rawValue: raw) ?? localEngine
-    localTestBaseURL = localBaseURL
-    localTestModelID = localModelId
-    localTestAPIKey = localAPIKey
-    LocalModelPreferences.syncPreset(for: localEngine, modelId: localModelId)
-  }
-
-  func reloadOpenAICompatibleSettings() {
-    let configuration = OpenAICompatiblePreferences.load() ?? .openRouter()
-    openAICompatiblePreset = configuration.preset
-    openAICompatibleBaseURL = configuration.baseURL
-    openAICompatibleModelID = configuration.modelID
-    openAICompatibleAPIKey =
-      KeychainManager.shared.retrieve(for: OpenAICompatiblePreferences.keychainProvider) ?? ""
-  }
-
-  func refreshCLIReadiness() {
-    guard !isCheckingCLIReadiness else { return }
-    isCheckingCLIReadiness = true
-
-    Task.detached { [weak self] in
-      let codexInstalled = CLIDetector.isInstalled(.codex)
-      let claudeInstalled = CLIDetector.isInstalled(.claude)
-      await MainActor.run { [weak self] in
-        self?.codexCLIInstalled = codexInstalled
-        self?.claudeCLIInstalled = claudeInstalled
-        self?.isCheckingCLIReadiness = false
-      }
-    }
-  }
-
-  var usingRecommendedLocalModel: Bool {
-    let comparisonEngine = localEngine == .custom ? .ollama : localEngine
-    let normalized = localModelId.trimmingCharacters(in: .whitespacesAndNewlines)
-    let recommended = LocalModelPreset.recommended.modelId(for: comparisonEngine)
-    if normalized.caseInsensitiveCompare(recommended) == .orderedSame {
-      return true
-    }
-    return LocalModelPreferences.currentPreset() == .qwen3VL4B
-  }
-
-  func refreshUpgradeBannerState() {
-    let shouldShow = LocalModelPreferences.shouldShowUpgradeBanner(
-      engine: localEngine, modelId: localModelId)
-    showLocalModelUpgradeBanner = shouldShow && currentProvider == .local
-  }
-
-  func handleUpgradeSuccess(engine: LocalEngine, baseURL: String, modelId: String, apiKey: String) {
-    let normalizedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    localEngine = engine
-    localBaseURL = baseURL
-    localModelId = modelId
-    localAPIKey = normalizedKey
-    localTestBaseURL = baseURL
-    localTestModelID = modelId
-    localTestAPIKey = normalizedKey
-    UserDefaults.standard.set(baseURL, forKey: "llmLocalBaseURL")
-    UserDefaults.standard.set(modelId, forKey: "llmLocalModelId")
-    UserDefaults.standard.set(engine.rawValue, forKey: "llmLocalEngine")
-    persistLocalAPIKey(normalizedKey)
-    LocalModelPreferences.syncPreset(for: engine, modelId: modelId)
-    LocalModelPreferences.markUpgradeDismissed(true)
-    refreshUpgradeBannerState()
-    upgradeStatusMessage = "Upgraded to \(LocalModelPreset.recommended.displayName)"
-    AnalyticsService.shared.capture(
-      "local_model_upgraded",
-      [
-        "engine": engine.rawValue,
-        "model": modelId,
-      ])
-
-    DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-      self?.upgradeStatusMessage = nil
-    }
-  }
-
-  func persistLocalAPIKey(_ value: String) {
-    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-    if trimmed.isEmpty {
-      UserDefaults.standard.removeObject(forKey: "llmLocalAPIKey")
-    } else {
-      UserDefaults.standard.set(trimmed, forKey: "llmLocalAPIKey")
-    }
-  }
-
-  var currentProvider: LLMProviderID { routing.primary }
-
-  var primaryRoutingProviderId: LLMProviderID { routing.primary }
-
-  var secondaryRoutingProviderId: LLMProviderID? { routing.secondary }
-
-  var hasCodexOrClaudeProviderInRouting: Bool {
-    routing.primary == .chatGPT || routing.primary == .claude
-      || routing.secondary == .chatGPT || routing.secondary == .claude
-  }
-
-  func loadRouting() {
-    do {
-      let storedRouting = try LLMProviderRoutingStore.load()
-      routing = storedRouting
-      hasLoadedRouting = true
-      providerRoutingErrorMessage = nil
-      applyProviderChangeSideEffects(for: storedRouting.primary)
-    } catch {
-      hasLoadedRouting = false
-      providerRoutingErrorMessage =
-        "Dayflow couldn't load your provider routing. Your saved providers were left unchanged."
-    }
-  }
-
-  var routingProviders: [CompactProviderInfo] {
-    providerCatalog
-  }
-
-  var canModifyRouting: Bool {
-    hasLoadedRouting
-  }
-
-  func beginProviderSetup(_ providerId: LLMProviderID, role: ProviderRoutingRole) {
-    guard providerCatalog.contains(where: { $0.id == providerId }) else { return }
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return
+    func setPrimaryOrSetup(_ providerId: String) {
+        if isProviderConfigured(providerId) {
+            assignPrimaryProvider(providerId)
+        } else {
+            beginProviderSetup(providerId, role: .primary)
+        }
     }
 
-    pendingSetupRole = role
-    setupModalProvider = providerId
-  }
-
-  func editProviderConfiguration(_ providerId: LLMProviderID) {
-    guard providerCatalog.contains(where: { $0.id == providerId }) else { return }
-    if providerId == .dayflow {
-      openAccountForDayflowProvider(providerId)
-      return
+    func setSecondaryOrSetup(_ providerId: String) {
+        if isProviderConfigured(providerId) {
+            assignSecondaryProvider(providerId)
+        } else {
+            beginProviderSetup(providerId, role: .secondary)
+        }
     }
 
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return
+    var primaryRoutingProviderId: String {
+        displayProviderId(canonicalProviderId: currentProvider, preferredTool: preferredCLITool)
     }
 
-    pendingSetupRole = .setupOnly
-    setupModalProvider = providerId
-  }
-
-  @discardableResult
-  func handleProviderSetupCompletion(_ providerId: LLMProviderID) -> Bool {
-    switch providerId {
-    case .local:
-      reloadLocalProviderSettings()
-    case .openAICompatible:
-      reloadOpenAICompatibleSettings()
-    case .chatGPT:
-      codexCLIInstalled = true
-      refreshCLIReadiness()
-    case .claude:
-      claudeCLIInstalled = true
-      refreshCLIReadiness()
-    case .gemini:
-      let preference = GeminiModelPreference.load()
-      selectedGeminiModel = preference.primary
-      savedGeminiModel = preference.primary
-    case .dayflow:
-      break
-    }
-    let role = pendingSetupRole ?? .setupOnly
-    let routingSucceeded: Bool
-    switch role {
-    case .primary:
-      routingSucceeded = assignPrimaryProvider(providerId, requiresReadinessCheck: false)
-    case .secondary:
-      routingSucceeded = assignSecondaryProvider(providerId, requiresReadinessCheck: false)
-    case .setupOnly:
-      routingSucceeded = true
-    }
-    guard routingSucceeded else { return false }
-
-    recordProviderSetupCompleted(providerId)
-    pendingSetupRole = nil
-    return true
-  }
-
-  func cancelProviderSetup() {
-    pendingSetupRole = nil
-    setupModalProvider = nil
-  }
-
-  func setPrimaryOrSetup(_ providerId: LLMProviderID) {
-    guard canModifyRouting else { return }
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return
+    var secondaryRoutingProviderId: String? {
+        guard let backupProvider else { return nil }
+        return displayProviderId(
+            canonicalProviderId: backupProvider,
+            preferredTool: backupChatCLITool ?? preferredCLITool
+        )
     }
 
-    if isProviderConfigured(providerId) {
-      assignPrimaryProvider(providerId)
-    } else {
-      beginProviderSetup(providerId, role: .primary)
-    }
-  }
+    func assignPrimaryProvider(_ providerId: String) {
+        guard canAssignPrimary(providerId) else { return }
 
-  func setSecondaryOrSetup(_ providerId: LLMProviderID) {
-    guard canModifyRouting else { return }
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return
-    }
+        let previousPrimaryDisplay = primaryRoutingProviderId
+        let shouldSwapWithSecondary = secondaryRoutingProviderId == providerId
+        let canonicalId = canonicalProviderId(for: providerId)
+        let selectedTool = chatTool(for: providerId)
 
-    if isProviderConfigured(providerId) {
-      assignSecondaryProvider(providerId)
-    } else {
-      beginProviderSetup(providerId, role: .secondary)
-    }
-  }
+        applyPrimaryProvider(canonicalId, preferredChatTool: selectedTool)
+        if shouldSwapWithSecondary {
+            persistBackupSelection(displayProviderId: previousPrimaryDisplay, emitAnalytics: true)
+        }
 
-  @discardableResult
-  func assignPrimaryProvider(
-    _ providerId: LLMProviderID,
-    requiresReadinessCheck: Bool = true
-  ) -> Bool {
-    guard canModifyRouting else { return false }
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return false
-    }
-    guard providerId != routing.primary else { return true }
-    if requiresReadinessCheck {
-      guard isProviderConfigured(providerId) else { return false }
-    }
-
-    let previousPrimary = routing.primary
-    let shouldSwapWithSecondary = routing.secondary == providerId
-    let updatedRouting = LLMProviderRouting(
-      primary: providerId,
-      secondary: shouldSwapWithSecondary ? previousPrimary : routing.secondary
-    )
-    guard saveRouting(updatedRouting) else { return false }
-
-    if providerId == .gemini {
-      let preference = GeminiModelPreference.load()
-      selectedGeminiModel = preference.primary
-      savedGeminiModel = preference.primary
-    }
-
-    AnalyticsService.shared.setPersonProperties([
-      "current_llm_provider": providerId.analyticsName,
-      "current_llm_provider_id": providerId.rawValue,
-    ])
-    if shouldSwapWithSecondary {
-      AnalyticsService.shared.capture(
-        "provider_backup_updated",
-        [
-          "backup_provider": previousPrimary.rawValue,
-          "provider_id": previousPrimary.rawValue,
-          "primary_provider": providerId.rawValue,
+        AnalyticsService.shared.capture("provider_primary_updated", [
+            "from_provider": previousPrimaryDisplay,
+            "to_provider": providerId,
+            "underlying_provider": canonicalId,
+            "swapped_with_secondary": shouldSwapWithSecondary
         ])
     }
-    AnalyticsService.shared.capture(
-      "provider_primary_updated",
-      [
-        "from_provider": previousPrimary.rawValue,
-        "to_provider": providerId.rawValue,
-        "underlying_provider": providerId.rawValue,
-        "provider_id": providerId.rawValue,
-        "swapped_with_secondary": shouldSwapWithSecondary,
-      ])
-    return true
-  }
 
-  @discardableResult
-  func assignSecondaryProvider(
-    _ providerId: LLMProviderID,
-    requiresReadinessCheck: Bool = true
-  ) -> Bool {
-    guard canModifyRouting else { return false }
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return false
-    }
-    if requiresReadinessCheck {
-      guard isProviderConfigured(providerId) else { return false }
-    }
+    func assignSecondaryProvider(_ providerId: String) {
+        guard canAssignSecondary(providerId) else { return }
 
-    if providerId == routing.secondary { return true }
+        let currentPrimaryProviderId = primaryRoutingProviderId
+        if providerId == currentPrimaryProviderId {
+            guard let existingBackup = secondaryRoutingProviderId else { return }
+            let previousPrimary = currentPrimaryProviderId
 
-    if providerId == routing.primary {
-      guard let existingSecondary = routing.secondary else { return false }
-      let previousPrimary = routing.primary
-      let updatedRouting = LLMProviderRouting(
-        primary: existingSecondary,
-        secondary: previousPrimary
-      )
-      guard saveRouting(updatedRouting) else { return false }
+            applyPrimaryProvider(
+                canonicalProviderId(for: existingBackup),
+                preferredChatTool: chatTool(for: existingBackup)
+            )
+            persistBackupSelection(displayProviderId: previousPrimary, emitAnalytics: true)
 
-      AnalyticsService.shared.setPersonProperties([
-        "current_llm_provider": existingSecondary.analyticsName,
-        "current_llm_provider_id": existingSecondary.rawValue,
-      ])
-      AnalyticsService.shared.capture(
-        "provider_backup_updated",
-        [
-          "backup_provider": previousPrimary.rawValue,
-          "provider_id": previousPrimary.rawValue,
-          "primary_provider": existingSecondary.rawValue,
+            AnalyticsService.shared.capture("provider_secondary_updated", [
+                "secondary_provider": previousPrimary,
+                "mode": "swap_with_primary"
+            ])
+            return
+        }
+
+        persistBackupSelection(displayProviderId: providerId, emitAnalytics: true)
+        AnalyticsService.shared.capture("provider_secondary_updated", [
+            "secondary_provider": providerId,
+            "underlying_provider": canonicalProviderId(for: providerId),
+            "mode": "set"
         ])
-      AnalyticsService.shared.capture(
-        "provider_secondary_updated",
-        [
-          "secondary_provider": previousPrimary.rawValue,
-          "provider_id": previousPrimary.rawValue,
-          "mode": "swap_with_primary",
-        ])
-      return true
     }
 
-    let updatedRouting = LLMProviderRouting(primary: routing.primary, secondary: providerId)
-    guard saveRouting(updatedRouting) else { return false }
-    AnalyticsService.shared.capture(
-      "provider_backup_updated",
-      [
-        "backup_provider": providerId.rawValue,
-        "underlying_provider": providerId.rawValue,
-        "provider_id": providerId.rawValue,
-        "primary_provider": routing.primary.rawValue,
-      ])
-    AnalyticsService.shared.capture(
-      "provider_secondary_updated",
-      [
-        "secondary_provider": providerId.rawValue,
-        "underlying_provider": providerId.rawValue,
-        "provider_id": providerId.rawValue,
-        "mode": "set",
-      ])
-    return true
-  }
-
-  func canAssignPrimary(_ providerId: LLMProviderID) -> Bool {
-    canModifyRouting && providerId != routing.primary && isProviderConfigured(providerId)
-  }
-
-  func canAssignSecondary(_ providerId: LLMProviderID) -> Bool {
-    guard canModifyRouting else { return false }
-    guard isProviderConfigured(providerId) else { return false }
-    if providerId == routing.primary {
-      return routing.secondary != nil
+    func canAssignPrimary(_ providerId: String) -> Bool {
+        providerId != primaryRoutingProviderId && isProviderConfigured(providerId)
     }
-    return true
-  }
 
-  func isProviderConfigured(_ providerId: LLMProviderID) -> Bool {
-    switch providerId {
-    case .dayflow:
-      return isDayflowProActive
-    case .gemini:
-      let key = KeychainManager.shared.retrieve(for: "gemini") ?? ""
-      return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    case .chatGPT:
-      return codexCLIInstalled && LLMProviderSetupPreferences.isComplete(.chatGPT)
-    case .claude:
-      return claudeCLIInstalled && LLMProviderSetupPreferences.isComplete(.claude)
-    case .openAICompatible:
-      guard let configuration = OpenAICompatiblePreferences.load(), configuration.isComplete else {
-        return false
-      }
-      if configuration.preset == .custom {
+    func canAssignSecondary(_ providerId: String) -> Bool {
+        guard isProviderConfigured(providerId) else { return false }
+
+        let currentPrimaryProviderId = primaryRoutingProviderId
+        if providerId == currentPrimaryProviderId {
+            return secondaryRoutingProviderId != nil
+        }
+
+        let targetCanonical = canonicalProviderId(for: providerId)
+        let primaryCanonical = canonicalProviderId(for: currentPrimaryProviderId)
+        if targetCanonical == primaryCanonical {
+            return false
+        }
+
         return true
-      }
-      let key =
-        KeychainManager.shared.retrieve(
-          for: OpenAICompatiblePreferences.keychainProvider) ?? ""
-      return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    case .local:
-      let baseURL = (UserDefaults.standard.string(forKey: "llmLocalBaseURL") ?? "")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-      let modelId = (UserDefaults.standard.string(forKey: "llmLocalModelId") ?? "")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-      return !baseURL.isEmpty && !modelId.isEmpty
     }
-  }
 
-  func isProviderReadinessChecking(_ providerId: LLMProviderID) -> Bool {
-    isCheckingCLIReadiness && (providerId == .chatGPT || providerId == .claude)
-  }
+    func isProviderConfigured(_ providerId: String) -> Bool {
+        if providerId == primaryRoutingProviderId {
+            return true
+        }
 
-  func clearBackupProvider() {
-    guard canModifyRouting else { return }
-    guard routing.secondary != nil else { return }
-    let updatedRouting = LLMProviderRouting(primary: routing.primary)
-    guard saveRouting(updatedRouting) else { return }
-    AnalyticsService.shared.capture(
-      "provider_backup_updated",
-      [
-        "backup_provider": "none",
-        "provider_id": "none",
-        "primary_provider": routing.primary.rawValue,
-        "primary_provider_id": routing.primary.rawValue,
-      ])
-  }
-
-  func isBackupProvider(_ providerId: LLMProviderID) -> Bool {
-    routing.secondary == providerId
-  }
-
-  var backupProviderDisplayName: String {
-    guard let backupProvider = routing.secondary else { return "Not configured" }
-    return providerDisplayName(backupProvider)
-  }
-
-  var isDayflowProActive: Bool {
-    let entitlement = DayflowAuthManager.shared.entitlements
-    return entitlement.plan == "pro" && entitlement.status == "active"
-  }
-
-  func shouldShowDayflowUpgradeAction(for providerId: LLMProviderID) -> Bool {
-    providerId == .dayflow && !isDayflowProActive
-  }
-
-  func openDayflowUpgradeAccount(from providerId: LLMProviderID) {
-    openAccountForDayflowPro(providerId)
-  }
-
-  private func canUseProviderForRouting(_ providerId: LLMProviderID) -> Bool {
-    providerId != .dayflow || isDayflowProActive
-  }
-
-  private func openAccountForDayflowPro(_ providerId: LLMProviderID) {
-    guard providerId == .dayflow else { return }
-    upgradeStatusMessage = "Dayflow Pro is required for hosted cards and transcription."
-    openAccountForDayflowProvider(providerId)
-  }
-
-  private func openAccountForDayflowProvider(_ providerId: LLMProviderID) {
-    guard providerId == .dayflow else { return }
-    if isDayflowProActive {
-      upgradeStatusMessage = "Manage Dayflow Pro from Account."
+        switch canonicalProviderId(for: providerId) {
+        case "gemini":
+            if let key = KeychainManager.shared.retrieve(for: "gemini") {
+                return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            return UserDefaults.standard.bool(forKey: "geminiSetupComplete")
+        case "ollama":
+            if UserDefaults.standard.bool(forKey: "ollamaSetupComplete") {
+                return true
+            }
+            let baseURL = (UserDefaults.standard.string(forKey: "llmLocalBaseURL") ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let modelId = (UserDefaults.standard.string(forKey: "llmLocalModelId") ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return !baseURL.isEmpty && !modelId.isEmpty
+        case "chatgpt_claude":
+            if UserDefaults.standard.bool(forKey: "chatgpt_claudeSetupComplete") {
+                return true
+            }
+            let preferredTool = (UserDefaults.standard.string(forKey: "chatCLIPreferredTool") ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return !preferredTool.isEmpty
+        default:
+            return false
+        }
     }
-    NotificationCenter.default.post(name: .openAccountSettings, object: nil)
-    AnalyticsService.shared.capture(
-      "dayflow_backend_provider_paywall_opened",
-      [
-        "provider": providerId.rawValue,
-        "provider_id": providerId.rawValue,
-        "is_signed_in": DayflowAuthManager.shared.isSignedIn,
-        "entitlement_plan": DayflowAuthManager.shared.entitlements.plan,
-        "entitlement_status": DayflowAuthManager.shared.entitlements.status,
-      ])
-  }
 
-  @discardableResult
-  private func saveRouting(_ updatedRouting: LLMProviderRouting) -> Bool {
-    guard canModifyRouting else { return false }
-    do {
-      try LLMProviderRoutingStore.save(updatedRouting)
-      withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-        routing = updatedRouting
-      }
-      providerRoutingErrorMessage = nil
-      applyProviderChangeSideEffects(for: updatedRouting.primary)
-      return true
-    } catch {
-      providerRoutingErrorMessage =
-        "Dayflow couldn't save your provider routing. Your previous selection is still active."
-      return false
+    func setBackupProvider(_ providerId: String?) {
+        guard let providerId, !providerId.isEmpty else {
+            persistBackupSelection(displayProviderId: nil, emitAnalytics: true)
+            return
+        }
+
+        guard canAssignSecondary(providerId) else {
+            return
+        }
+
+        persistBackupSelection(displayProviderId: providerId, emitAnalytics: true)
     }
-  }
 
-  private func recordProviderSetupCompleted(_ providerId: LLMProviderID) {
-    var properties: [String: Any] = [
-      "provider": providerId.analyticsName,
-      "provider_id": providerId.rawValue,
-    ]
-    if providerId == .local {
-      properties["local_engine"] =
-        UserDefaults.standard.string(forKey: "llmLocalEngine") ?? "ollama"
-      properties["model_id"] =
-        UserDefaults.standard.string(forKey: "llmLocalModelId") ?? "unknown"
-      let localAPIKey = (UserDefaults.standard.string(forKey: "llmLocalAPIKey") ?? "")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-      properties["has_api_key"] = !localAPIKey.isEmpty
-    } else if providerId == .chatGPT {
-      properties["chat_cli_tool"] = "codex"
-    } else if providerId == .claude {
-      properties["chat_cli_tool"] = "claude"
-    } else if providerId == .openAICompatible {
-      properties["endpoint_kind"] = openAICompatiblePreset.rawValue
-      properties["has_api_key"] =
-        !openAICompatibleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    func clearBackupProvider() {
+        setBackupProvider(nil)
     }
-    AnalyticsService.shared.capture("provider_setup_completed", properties)
-  }
 
-  func persistGeminiModelSelection(_ model: GeminiModel, source: String) {
-    guard model != savedGeminiModel else { return }
-    savedGeminiModel = model
-    GeminiModelPreference(primary: model).save()
+    func isBackupProvider(_ providerId: String) -> Bool {
+        secondaryRoutingProviderId == providerId
+    }
 
-    Task { @MainActor in
-      AnalyticsService.shared.capture(
-        "gemini_model_selected",
+    var backupProviderDisplayName: String {
+        guard let backupProvider = secondaryRoutingProviderId else { return "Not configured" }
+        return providerDisplayName(backupProvider)
+    }
+
+    private func ensureBackupProviderIsValid(primaryProvider: String) {
+        guard let backupProvider else { return }
+        if backupProvider == primaryProvider {
+            persistBackupSelection(displayProviderId: nil, emitAnalytics: false)
+        }
+    }
+
+    private func applyPrimaryProvider(_ providerId: String, preferredChatTool: CLITool? = nil) {
+        let providerType: LLMProviderType
+        switch providerId {
+        case "ollama":
+            let endpoint = UserDefaults.standard.string(forKey: "llmLocalBaseURL") ?? "http://localhost:11434"
+            providerType = .ollamaLocal(endpoint: endpoint)
+        case "gemini":
+            providerType = .geminiDirect
+        case "chatgpt_claude":
+            providerType = .chatGPTClaude
+        default:
+            return
+        }
+
+        if let encoded = try? JSONEncoder().encode(providerType) {
+            UserDefaults.standard.set(encoded, forKey: "llmProviderType")
+        }
+        UserDefaults.standard.set(providerId, forKey: "selectedLLMProvider")
+
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+            currentProvider = providerId
+        }
+
+        if providerId == "chatgpt_claude", let preferredChatTool {
+            preferredCLITool = preferredChatTool
+            UserDefaults.standard.set(preferredChatTool.rawValue, forKey: "chatCLIPreferredTool")
+        }
+
+        if providerId == "gemini" {
+            let preference = GeminiModelPreference.load()
+            selectedGeminiModel = preference.primary
+            savedGeminiModel = preference.primary
+        }
+
+        AnalyticsService.shared.setPersonProperties(["current_llm_provider": providerId])
+    }
+
+    private func persistBackupSelection(displayProviderId: String?, emitAnalytics: Bool) {
+        guard let displayProviderId, !displayProviderId.isEmpty else {
+            backupProvider = nil
+            backupChatCLITool = nil
+            LLMProviderRoutingPreferences.saveBackupProvider(nil)
+            LLMProviderRoutingPreferences.saveBackupChatCLITool(nil)
+            if emitAnalytics {
+                AnalyticsService.shared.capture("provider_backup_updated", [
+                    "backup_provider": "none",
+                    "primary_provider": currentProvider
+                ])
+            }
+            return
+        }
+
+        let providerId = canonicalProviderId(for: displayProviderId)
+        guard providerId != currentProvider,
+              let provider = LLMProviderID(rawValue: providerId) else {
+            return
+        }
+
+        let backupTool = chatTool(for: displayProviderId) ?? preferredCLITool
+        backupProvider = providerId
+        backupChatCLITool = backupTool
+        LLMProviderRoutingPreferences.saveBackupProvider(provider)
+        let routingTool = backupTool.flatMap { ChatCLITool(rawValue: $0.rawValue) }
+        LLMProviderRoutingPreferences.saveBackupChatCLITool(routingTool)
+        if emitAnalytics {
+            AnalyticsService.shared.capture("provider_backup_updated", [
+                "backup_provider": displayProviderId,
+                "underlying_provider": providerId,
+                "primary_provider": currentProvider
+            ])
+        }
+    }
+
+    private func recordProviderSetupCompleted(_ providerId: String) {
+        var props: [String: Any] = ["provider": providerId]
+        if providerId == "ollama" {
+            let localEngineValue = UserDefaults.standard.string(forKey: "llmLocalEngine") ?? "ollama"
+            let localModelValue = UserDefaults.standard.string(forKey: "llmLocalModelId") ?? "unknown"
+            let localBaseValue = UserDefaults.standard.string(forKey: "llmLocalBaseURL") ?? "unknown"
+            let localAPIKeyValue = (UserDefaults.standard.string(forKey: "llmLocalAPIKey") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            props["local_engine"] = localEngineValue
+            props["model_id"] = localModelValue
+            props["base_url"] = localBaseValue
+            props["has_api_key"] = !localAPIKeyValue.isEmpty
+        } else if providerId == "chatgpt_claude" {
+            props["chat_cli_tool"] = UserDefaults.standard.string(forKey: "chatCLIPreferredTool") ?? "unknown"
+        }
+        AnalyticsService.shared.capture("provider_setup_completed", props)
+    }
+
+    func persistGeminiModelSelection(_ model: GeminiModel, source: String) {
+        guard model != savedGeminiModel else { return }
+        savedGeminiModel = model
+        GeminiModelPreference(primary: model).save()
+
+        Task { @MainActor in
+            AnalyticsService.shared.capture("gemini_model_selected", [
+                "source": source,
+                "model": model.rawValue
+            ])
+        }
+    }
+
+    private var providerCatalog: [CompactProviderInfo] {
         [
-          "source": source,
-          "model": model.rawValue,
-        ])
+            CompactProviderInfo(
+                id: "ollama",
+                title: "Local",
+                summary: "Private & offline • 16GB+ RAM • less intelligent",
+                badgeText: "MOST PRIVATE",
+                badgeType: .green,
+                icon: "desktopcomputer"
+            ),
+            CompactProviderInfo(
+                id: "gemini",
+                title: "Gemini",
+                summary: "Gemini free tier • fast & accurate",
+                badgeText: "RECOMMENDED",
+                badgeType: .orange,
+                icon: "gemini_asset"
+            ),
+            CompactProviderInfo(
+                id: "chatgpt",
+                title: "ChatGPT",
+                summary: "Uses Codex CLI through your existing ChatGPT plan",
+                badgeText: "NEW",
+                badgeType: .blue,
+                icon: "ChatGPTLogo"
+            ),
+            CompactProviderInfo(
+                id: "claude",
+                title: "Claude",
+                summary: "Uses Claude Code through your existing Claude plan",
+                badgeText: "NEW",
+                badgeType: .blue,
+                icon: "ClaudeLogo"
+            )
+        ]
     }
-  }
 
-  private var providerCatalog: [CompactProviderInfo] {
-    [
-      CompactProviderInfo(
-        id: .dayflow,
-        summary: "Hosted cards & transcription • no API keys • requires Pro"
-      ),
-      CompactProviderInfo(
-        id: .claude,
-        summary: "Uses Claude Code through your existing Claude plan"
-      ),
-      CompactProviderInfo(
-        id: .chatGPT,
-        summary: "Uses Codex CLI through your existing ChatGPT plan"
-      ),
-      CompactProviderInfo(
-        id: .gemini,
-        summary: "Gemini free tier • fast & accurate"
-      ),
-      CompactProviderInfo(
-        id: .openAICompatible,
-        summary: "OpenRouter or another OpenAI Chat Completions endpoint"
-      ),
-      CompactProviderInfo(
-        id: .local,
-        summary: "Private & offline • 16GB+ RAM • less intelligent"
-      ),
-    ]
-  }
+    func statusText(for providerId: String) -> String? {
+        let canonicalId = canonicalProviderId(for: providerId)
+        guard currentProvider == canonicalId else { return nil }
 
-  func statusText(for providerId: LLMProviderID) -> String? {
-    guard currentProvider == providerId else { return nil }
-
-    switch providerId {
-    case .local:
-      let engineName: String
-      switch localEngine {
-      case .ollama: engineName = "Ollama"
-      case .lmstudio: engineName = "LM Studio"
-      case .custom: engineName = "Custom"
-      }
-      let displayModel = localModelId.isEmpty ? "qwen2.5vl:3b" : localModelId
-      let truncatedModel =
-        displayModel.count > 30 ? String(displayModel.prefix(27)) + "..." : displayModel
-      return "\(engineName) - \(truncatedModel)"
-    case .gemini:
-      return selectedGeminiModel.displayName
-    case .chatGPT:
-      return cliStatusLabel(for: .chatGPT)
-    case .claude:
-      return cliStatusLabel(for: .claude)
-    case .openAICompatible:
-      return openAICompatibleModelID.isEmpty
-        ? "OpenAI-compatible endpoint" : openAICompatibleModelID
-    case .dayflow:
-      return isDayflowProActive ? "Dayflow Pro active" : "Requires Dayflow Pro"
+        switch canonicalId {
+        case "ollama":
+            let engineName: String
+            switch localEngine {
+            case .ollama: engineName = "Ollama"
+            case .lmstudio: engineName = "LM Studio"
+            case .custom: engineName = "Custom"
+            }
+            let displayModel = localModelId.isEmpty ? "qwen2.5vl:3b" : localModelId
+            let truncatedModel = displayModel.count > 30 ? String(displayModel.prefix(27)) + "..." : displayModel
+            return "\(engineName) - \(truncatedModel)"
+        case "gemini":
+            return selectedGeminiModel.displayName
+        case "chatgpt_claude":
+            if providerId == "chatgpt" {
+                return "ChatGPT – Codex CLI"
+            }
+            if providerId == "claude" {
+                return "Claude Code CLI"
+            }
+            return chatCLIStatusLabel()
+        default:
+            return nil
+        }
     }
-  }
 
-  func cliStatusLabel(for providerId: LLMProviderID) -> String {
-    if isProviderReadinessChecking(providerId) {
-      return "Checking installation…"
+    func chatCLIStatusLabel() -> String {
+        let preferredTool = UserDefaults.standard.string(forKey: "chatCLIPreferredTool") ?? ""
+        switch preferredTool {
+        case "codex":
+            return "ChatGPT – Codex CLI"
+        case "claude":
+            return "Claude Code CLI"
+        default:
+            return "Codex or Claude CLI"
+        }
     }
-    switch providerId {
-    case .chatGPT:
-      return codexCLIInstalled ? "Codex CLI detected" : "Codex CLI not detected"
-    case .claude:
-      return claudeCLIInstalled ? "Claude Code detected" : "Claude Code not detected"
-    default:
-      return "Not applicable"
-    }
-  }
 
-  var connectionHealthLabel: String {
-    switch currentProvider {
-    case .gemini:
-      return "Gemini API"
-    case .local:
-      return "Local API"
-    case .chatGPT:
-      return "Codex CLI"
-    case .claude:
-      return "Claude Code"
-    case .openAICompatible:
-      return "OpenAI-compatible API"
-    case .dayflow:
-      return "Dayflow Backend"
+    var connectionHealthLabel: String {
+        switch currentProvider {
+        case "gemini":
+            return "Gemini API"
+        case "ollama":
+            return "Local API"
+        case "chatgpt_claude":
+            if let tool = preferredCLITool {
+                return "\(tool.shortName) CLI"
+            }
+            return "ChatGPT / Claude CLI"
+        default:
+            return "Diagnostics"
+        }
     }
-  }
 
-  func providerDisplayName(_ id: LLMProviderID) -> String {
-    switch id {
-    case .local: return "Local"
-    case .gemini: return "Gemini"
-    case .chatGPT: return "ChatGPT"
-    case .claude: return "Claude"
-    case .openAICompatible: return "OpenAI-compatible"
-    case .dayflow: return "Dayflow Pro"
+    func providerDisplayName(_ id: String) -> String {
+        switch id {
+        case "ollama": return "Local"
+        case "gemini": return "Gemini"
+        case "chatgpt": return "ChatGPT"
+        case "claude": return "Claude"
+        case "chatgpt_claude":
+            if let preferredCLITool {
+                return preferredCLITool == .codex ? "ChatGPT" : "Claude"
+            }
+            return "ChatGPT or Claude"
+        case "dayflow": return "Dayflow Pro"
+        default: return id.capitalized
+        }
     }
-  }
 
-  // Prompt override load/persist/reset lives in
-  // ProvidersSettingsViewModel+PromptOverrides.swift.
+    private func canonicalProviderId(for displayProviderId: String) -> String {
+        switch displayProviderId {
+        case "chatgpt", "claude", "chatgpt_claude":
+            return "chatgpt_claude"
+        default:
+            return displayProviderId
+        }
+    }
+
+    private func displayProviderId(canonicalProviderId: String, preferredTool: CLITool?) -> String {
+        if canonicalProviderId == "chatgpt_claude" {
+            return preferredTool == .claude ? "claude" : "chatgpt"
+        }
+        return canonicalProviderId
+    }
+
+    private func chatTool(for providerId: String) -> CLITool? {
+        switch providerId {
+        case "chatgpt":
+            return .codex
+        case "claude":
+            return .claude
+        case "chatgpt_claude":
+            return preferredCLITool
+        default:
+            return nil
+        }
+    }
+
+    func loadGeminiPromptOverridesIfNeeded(force: Bool = false) {
+        if geminiPromptOverridesLoaded && !force { return }
+        isUpdatingGeminiPromptState = true
+        let overrides = GeminiPromptPreferences.load()
+
+        let trimmedTitle = overrides.titleBlock?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSummary = overrides.summaryBlock?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDetailed = overrides.detailedBlock?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        useCustomGeminiTitlePrompt = trimmedTitle?.isEmpty == false
+        useCustomGeminiSummaryPrompt = trimmedSummary?.isEmpty == false
+        useCustomGeminiDetailedPrompt = trimmedDetailed?.isEmpty == false
+
+        geminiTitlePromptText = trimmedTitle ?? GeminiPromptDefaults.titleBlock
+        geminiSummaryPromptText = trimmedSummary ?? GeminiPromptDefaults.summaryBlock
+        geminiDetailedPromptText = trimmedDetailed ?? GeminiPromptDefaults.detailedSummaryBlock
+
+        isUpdatingGeminiPromptState = false
+        geminiPromptOverridesLoaded = true
+    }
+
+    func persistGeminiPromptOverridesIfReady() {
+        guard geminiPromptOverridesLoaded, !isUpdatingGeminiPromptState else { return }
+        persistGeminiPromptOverrides()
+    }
+
+    func persistGeminiPromptOverrides() {
+        let overrides = GeminiPromptOverrides(
+            titleBlock: normalizedOverride(text: geminiTitlePromptText, enabled: useCustomGeminiTitlePrompt),
+            summaryBlock: normalizedOverride(text: geminiSummaryPromptText, enabled: useCustomGeminiSummaryPrompt),
+            detailedBlock: normalizedOverride(text: geminiDetailedPromptText, enabled: useCustomGeminiDetailedPrompt)
+        )
+
+        if overrides.isEmpty {
+            GeminiPromptPreferences.reset()
+        } else {
+            GeminiPromptPreferences.save(overrides)
+        }
+    }
+
+    func resetGeminiPromptOverrides() {
+        isUpdatingGeminiPromptState = true
+        useCustomGeminiTitlePrompt = false
+        useCustomGeminiSummaryPrompt = false
+        useCustomGeminiDetailedPrompt = false
+        geminiTitlePromptText = GeminiPromptDefaults.titleBlock
+        geminiSummaryPromptText = GeminiPromptDefaults.summaryBlock
+        geminiDetailedPromptText = GeminiPromptDefaults.detailedSummaryBlock
+        GeminiPromptPreferences.reset()
+        isUpdatingGeminiPromptState = false
+        geminiPromptOverridesLoaded = true
+    }
+
+    func loadOllamaPromptOverridesIfNeeded(force: Bool = false) {
+        if ollamaPromptOverridesLoaded && !force { return }
+        isUpdatingOllamaPromptState = true
+        let overrides = OllamaPromptPreferences.load()
+
+        let trimmedSummary = overrides.summaryBlock?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTitle = overrides.titleBlock?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        useCustomOllamaSummaryPrompt = trimmedSummary?.isEmpty == false
+        useCustomOllamaTitlePrompt = trimmedTitle?.isEmpty == false
+
+        ollamaSummaryPromptText = trimmedSummary ?? OllamaPromptDefaults.summaryBlock
+        ollamaTitlePromptText = trimmedTitle ?? OllamaPromptDefaults.titleBlock
+
+        isUpdatingOllamaPromptState = false
+        ollamaPromptOverridesLoaded = true
+    }
+
+    func persistOllamaPromptOverridesIfReady() {
+        guard ollamaPromptOverridesLoaded, !isUpdatingOllamaPromptState else { return }
+        persistOllamaPromptOverrides()
+    }
+
+    func persistOllamaPromptOverrides() {
+        let overrides = OllamaPromptOverrides(
+            summaryBlock: normalizedOverride(text: ollamaSummaryPromptText, enabled: useCustomOllamaSummaryPrompt),
+            titleBlock: normalizedOverride(text: ollamaTitlePromptText, enabled: useCustomOllamaTitlePrompt)
+        )
+
+        if overrides.isEmpty {
+            OllamaPromptPreferences.reset()
+        } else {
+            OllamaPromptPreferences.save(overrides)
+        }
+    }
+
+    func resetOllamaPromptOverrides() {
+        isUpdatingOllamaPromptState = true
+        useCustomOllamaSummaryPrompt = false
+        useCustomOllamaTitlePrompt = false
+        ollamaSummaryPromptText = OllamaPromptDefaults.summaryBlock
+        ollamaTitlePromptText = OllamaPromptDefaults.titleBlock
+        OllamaPromptPreferences.reset()
+        isUpdatingOllamaPromptState = false
+        ollamaPromptOverridesLoaded = true
+    }
+
+    func loadChatCLIPromptOverridesIfNeeded(force: Bool = false) {
+        if chatCLIPromptOverridesLoaded && !force { return }
+        isUpdatingChatCLIPromptState = true
+        let overrides = ChatCLIPromptPreferences.load()
+
+        let trimmedTitle = overrides.titleBlock?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSummary = overrides.summaryBlock?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDetailed = overrides.detailedBlock?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        useCustomChatCLITitlePrompt = trimmedTitle?.isEmpty == false
+        useCustomChatCLISummaryPrompt = trimmedSummary?.isEmpty == false
+        useCustomChatCLIDetailedPrompt = trimmedDetailed?.isEmpty == false
+
+        chatCLITitlePromptText = trimmedTitle ?? ChatCLIPromptDefaults.titleBlock
+        chatCLISummaryPromptText = trimmedSummary ?? ChatCLIPromptDefaults.summaryBlock
+        chatCLIDetailedPromptText = trimmedDetailed ?? ChatCLIPromptDefaults.detailedSummaryBlock
+
+        isUpdatingChatCLIPromptState = false
+        chatCLIPromptOverridesLoaded = true
+    }
+
+    func persistChatCLIPromptOverridesIfReady() {
+        guard chatCLIPromptOverridesLoaded, !isUpdatingChatCLIPromptState else { return }
+        persistChatCLIPromptOverrides()
+    }
+
+    func persistChatCLIPromptOverrides() {
+        let overrides = ChatCLIPromptOverrides(
+            titleBlock: normalizedOverride(text: chatCLITitlePromptText, enabled: useCustomChatCLITitlePrompt),
+            summaryBlock: normalizedOverride(text: chatCLISummaryPromptText, enabled: useCustomChatCLISummaryPrompt),
+            detailedBlock: normalizedOverride(text: chatCLIDetailedPromptText, enabled: useCustomChatCLIDetailedPrompt)
+        )
+
+        if overrides.isEmpty {
+            ChatCLIPromptPreferences.reset()
+        } else {
+            ChatCLIPromptPreferences.save(overrides)
+        }
+    }
+
+    func resetChatCLIPromptOverrides() {
+        isUpdatingChatCLIPromptState = true
+        useCustomChatCLITitlePrompt = false
+        useCustomChatCLISummaryPrompt = false
+        useCustomChatCLIDetailedPrompt = false
+        chatCLITitlePromptText = ChatCLIPromptDefaults.titleBlock
+        chatCLISummaryPromptText = ChatCLIPromptDefaults.summaryBlock
+        chatCLIDetailedPromptText = ChatCLIPromptDefaults.detailedSummaryBlock
+        ChatCLIPromptPreferences.reset()
+        isUpdatingChatCLIPromptState = false
+        chatCLIPromptOverridesLoaded = true
+    }
+
+    func normalizedOverride(text: String, enabled: Bool) -> String? {
+        guard enabled else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }
 
 struct CompactProviderInfo: Identifiable {
-  let id: LLMProviderID
-  let summary: String
+    let id: String
+    let title: String
+    let summary: String
+    let badgeText: String
+    let badgeType: BadgeType
+    let icon: String
 
-  var providerTableName: String {
-    switch id {
-    case .local: return "Local"
-    case .gemini: return "Gemini"
-    case .chatGPT: return "ChatGPT"
-    case .claude: return "Claude"
-    case .openAICompatible: return "OpenAI-compatible"
-    case .dayflow: return "Dayflow Pro"
+    var providerTableName: String {
+        switch id {
+        case "ollama": return "Local"
+        case "gemini": return "Gemini"
+        case "chatgpt": return "ChatGPT"
+        case "claude": return "Claude"
+        case "chatgpt_claude": return "ChatGPT / Claude"
+        default: return title
+        }
     }
-  }
 }
 
 enum ProviderRoutingRole {
-  case primary
-  case secondary
-  case setupOnly
+    case primary
+    case secondary
+    case setupOnly
 }

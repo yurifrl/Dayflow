@@ -109,7 +109,7 @@ struct SetupSidebarItem: View {
         .frame(width: 20, height: 20)  // Fixed frame for consistent centering
 
         Text(title)
-          .font(.custom("Figtree", size: 15))
+          .font(.custom("Nunito", size: 15))
           .fontWeight(isSelected ? .semibold : .medium)
           .foregroundColor(textColor)
 
@@ -128,7 +128,7 @@ struct SetupSidebarItem: View {
       .shadow(color: shadowColor(at: 3), radius: 8.94749, x: -16.66084, y: 40.72652)
       .shadow(color: shadowColor(at: 4), radius: 9.56456, x: -25.91687, y: 63.55804)
     }
-    .buttonStyle(DayflowPressScaleButtonStyle(pressedScale: 0.97))
+    .buttonStyle(.plain)
     .pointingHandCursor()
     .scaleEffect(isHovered && !isSelected ? 1.02 : 1.0)
     .animation(.spring(response: 0.3, dampingFraction: 0.9), value: isSelected)

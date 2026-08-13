@@ -3,14 +3,15 @@ import SwiftUI
 
 struct SettingsProvidersTabView: View {
   @ObservedObject var viewModel: ProvidersSettingsViewModel
-  @ObservedObject private var authManager = DayflowAuthManager.shared
 
   var body: some View {
-    VStack(alignment: .leading, spacing: SettingsStyle.sectionSpacing) {
-      if viewModel.currentProvider == .local, viewModel.showLocalModelUpgradeBanner {
+    VStack(alignment: .leading, spacing: 28) {
+      if viewModel.currentProvider == "ollama", viewModel.showLocalModelUpgradeBanner {
         LocalModelUpgradeBanner(
           preset: .qwen3VL4B,
-          onKeepLegacy: { viewModel.markUpgradeBannerKeepLegacy() },
+          onKeepLegacy: {
+            viewModel.markUpgradeBannerKeepLegacy()
+          },
           onUpgrade: {
             viewModel.markUpgradeBannerUpgrade()
             viewModel.isShowingLocalModelUpgradeSheet = true
@@ -21,586 +22,593 @@ struct SettingsProvidersTabView: View {
 
       if let status = viewModel.upgradeStatusMessage {
         Text(status)
-          .font(.custom("Figtree", size: 13))
-          .foregroundColor(SettingsStyle.statusGood)
+          .font(.custom("Nunito", size: 13))
+          .foregroundColor(Color(red: 0.06, green: 0.45, blue: 0.2))
+          .padding(.horizontal, 4)
       }
 
-      if let error = viewModel.providerRoutingErrorMessage {
-        Text(error)
-          .font(.custom("Figtree", size: 13))
-          .foregroundColor(.red.opacity(0.8))
+      SettingsCard(title: "Current configuration", subtitle: "Active provider and runtime details")
+      {
+        VStack(alignment: .leading, spacing: 14) {
+          providerSummary
+          DayflowSurfaceButton(
+            action: { viewModel.editProviderConfiguration(viewModel.primaryRoutingProviderId) },
+            content: {
+              HStack(spacing: 8) {
+                Image(systemName: "slider.horizontal.3")
+                Text("Edit configuration")
+                  .font(.custom("Nunito", size: 13))
+              }
+              .frame(minWidth: 160)
+            },
+            background: Color(red: 0.25, green: 0.17, blue: 0),
+            foreground: .white,
+            borderColor: .clear,
+            cornerRadius: 8,
+            horizontalPadding: 20,
+            verticalPadding: 10,
+            showOverlayStroke: true
+          )
+          if viewModel.currentProvider == "ollama" {
+            DayflowSurfaceButton(
+              action: { viewModel.isShowingLocalModelUpgradeSheet = true },
+              content: {
+                HStack(spacing: 6) {
+                  Image(
+                    systemName: viewModel.usingRecommendedLocalModel
+                      ? "slider.horizontal.2.square" : "arrow.up.circle.fill"
+                  )
+                  .font(.system(size: 14))
+                  Text(
+                    viewModel.usingRecommendedLocalModel
+                      ? "Manage local model" : "Upgrade local model"
+                  )
+                  .font(.custom("Nunito", size: 13))
+                  .fontWeight(.semibold)
+                }
+                .frame(minWidth: 160)
+              },
+              background: Color.white,
+              foreground: .black,
+              borderColor: Color.black.opacity(0.15),
+              cornerRadius: 8,
+              horizontalPadding: 16,
+              verticalPadding: 9,
+              showOverlayStroke: false
+            )
+            .padding(.top, 6)
+          }
+        }
       }
 
-      currentConfigurationSection
-      connectionHealthSection
-      failoverRoutingSection
+      SettingsCard(
+        title: "Connection health", subtitle: "Run a quick test for the primary provider"
+      ) {
+        VStack(alignment: .leading, spacing: 16) {
+          Text(viewModel.connectionHealthLabel)
+            .font(.custom("Nunito", size: 14))
+            .fontWeight(.semibold)
+            .foregroundColor(.black.opacity(0.72))
 
-      if viewModel.currentProvider == .gemini {
-        geminiModelSection
+          switch viewModel.currentProvider {
+          case "gemini":
+            TestConnectionView(onTestComplete: { _ in })
+          case "ollama":
+            LocalLLMTestView(
+              baseURL: $viewModel.localBaseURL,
+              modelId: $viewModel.localModelId,
+              apiKey: $viewModel.localAPIKey,
+              engine: viewModel.localEngine,
+              showInputs: viewModel.localEngine == .custom,
+              onTestComplete: { _ in
+                viewModel.handleLocalTestCompletion()
+              }
+            )
+          case "chatgpt_claude":
+            ChatCLITestView(
+              selectedTool: viewModel.preferredCLITool,
+              onTestComplete: { _ in }
+            )
+          default:
+            VStack(alignment: .leading, spacing: 8) {
+              Text("Dayflow Pro diagnostics coming soon")
+                .font(.custom("Nunito", size: 13))
+                .foregroundColor(.black.opacity(0.55))
+            }
+          }
+        }
       }
 
-      primaryPromptCustomizationSection
-      if viewModel.hasCodexOrClaudeProviderInRouting {
-        agentPromptCustomizationSection
+      SettingsCard(title: "Failover routing", subtitle: "Choose primary and secondary providers") {
+        routingMatrix
+      }
+
+      if viewModel.currentProvider == "gemini" {
+        SettingsCard(
+          title: "Gemini model preference",
+          subtitle: "Choose which Gemini model Dayflow should prioritize"
+        ) {
+          GeminiModelSettingsCard(selectedModel: $viewModel.selectedGeminiModel) { model in
+            viewModel.persistGeminiModelSelection(model, source: "settings")
+          }
+        }
+
+        SettingsCard(
+          title: "Gemini prompt customization",
+          subtitle: "Override Dayflow's defaults to tailor card generation"
+        ) {
+          geminiPromptCustomizationView
+        }
+      } else if viewModel.currentProvider == "ollama" {
+        SettingsCard(
+          title: "Local prompt customization",
+          subtitle: "Adjust the prompts used for local timeline summaries"
+        ) {
+          ollamaPromptCustomizationView
+        }
+      } else if viewModel.currentProvider == "chatgpt_claude" {
+        SettingsCard(
+          title: "ChatGPT / Claude prompt customization",
+          subtitle: "Override Dayflow's defaults to tailor card generation"
+        ) {
+          chatCLIPromptCustomizationView
+        }
       }
     }
   }
 
-  // MARK: - Current configuration
+  private let routingAccentColor = Color(red: 0.25, green: 0.17, blue: 0)
+  private let routingButtonTextWidth: CGFloat = 120
 
-  private var currentConfigurationSection: some View {
-    SettingsSection(
-      title: "Current configuration",
-      subtitle: "Active provider and runtime details."
-    ) {
-      VStack(alignment: .leading, spacing: 0) {
-        summaryRows
+  private var routingMatrix: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      ForEach(viewModel.routingProviders, id: \.id) { provider in
+        routingProviderCard(provider)
+      }
+    }
+  }
 
-        HStack(spacing: 8) {
-          SettingsSecondaryButton(
-            title: "Edit configuration",
-            action: { viewModel.editProviderConfiguration(viewModel.primaryRoutingProviderId) }
-          )
+  private func hasPrimaryAndSecondaryActions(
+    isPrimary: Bool,
+    isSecondary: Bool
+  ) -> Bool {
+    !isPrimary && !isSecondary
+  }
 
-          if viewModel.currentProvider == .local {
-            SettingsSecondaryButton(
-              title: viewModel.usingRecommendedLocalModel
-                ? "Manage local model" : "Upgrade local model",
-              action: { viewModel.isShowingLocalModelUpgradeSheet = true }
-            )
-          }
+  @ViewBuilder
+  private func primaryAndSecondaryActions(
+    provider: CompactProviderInfo,
+    isPrimary: Bool,
+    isSecondary: Bool,
+    canSetSecondary: Bool
+  ) -> some View {
+    if hasPrimaryAndSecondaryActions(isPrimary: isPrimary, isSecondary: isSecondary) {
+      HStack(spacing: 8) {
+        matrixActionButton("Set primary", filled: true) {
+          viewModel.setPrimaryOrSetup(provider.id)
         }
-        .padding(.top, 18)
+        matrixActionButton("Set secondary", filled: true, enabled: canSetSecondary) {
+          viewModel.setSecondaryOrSetup(provider.id)
+        }
+      }
+    } else if !isPrimary {
+      HStack(spacing: 8) {
+        matrixActionButton("Set primary", filled: true) {
+          viewModel.setPrimaryOrSetup(provider.id)
+        }
+      }
+    } else if !isSecondary {
+      HStack(spacing: 8) {
+        matrixActionButton("Set secondary", filled: true, enabled: canSetSecondary) {
+          viewModel.setSecondaryOrSetup(provider.id)
+        }
       }
     }
   }
 
   @ViewBuilder
-  private var summaryRows: some View {
-    SettingsRow(label: "Primary provider") {
-      HStack(spacing: 8) {
-        SettingsMetadata(
-          text: viewModel.providerDisplayName(viewModel.primaryRoutingProviderId))
-        SettingsBadge(text: "PRIMARY", isAccent: true)
-      }
-    }
-
-    if let backupProvider = viewModel.secondaryRoutingProviderId {
-      SettingsRow(label: "Secondary provider") {
-        HStack(spacing: 8) {
-          SettingsMetadata(text: viewModel.providerDisplayName(backupProvider))
-          SettingsBadge(text: "SECONDARY")
-        }
-      }
-    } else {
-      SettingsRow(label: "Secondary provider") {
-        SettingsMetadata(text: "Not configured")
-      }
-    }
-
-    switch viewModel.currentProvider {
-    case .local:
-      SettingsRow(label: "Engine") { SettingsMetadata(text: viewModel.localEngine.displayName) }
-      SettingsRow(label: "Model") {
-        SettingsMetadata(
-          text: viewModel.localModelId.isEmpty ? "Not configured" : viewModel.localModelId)
-      }
-      SettingsRow(label: "Endpoint") { SettingsMetadata(text: viewModel.localBaseURL) }
-      let hasKey = !viewModel.localAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      SettingsRow(label: "API key", showsDivider: false) {
-        SettingsMetadata(text: hasKey ? "Stored in UserDefaults" : "Not set")
-      }
-    case .gemini:
-      SettingsRow(label: "Model preference") {
-        SettingsMetadata(text: viewModel.selectedGeminiModel.displayName)
-      }
-      SettingsRow(label: "API key", showsDivider: false) {
-        SettingsMetadata(
-          text: KeychainManager.shared.retrieve(for: "gemini") != nil
-            ? "Stored safely in Keychain" : "Not set")
-      }
-    case .chatGPT, .claude:
-      SettingsRow(label: "CLI") {
-        SettingsMetadata(text: viewModel.cliStatusLabel(for: viewModel.currentProvider))
-      }
-    case .openAICompatible:
-      SettingsRow(label: "Preset") {
-        SettingsMetadata(
-          text: viewModel.openAICompatiblePreset == .openRouter ? "OpenRouter" : "Custom")
-      }
-      SettingsRow(label: "Model") {
-        SettingsMetadata(
-          text: viewModel.openAICompatibleModelID.isEmpty
-            ? "Not configured" : viewModel.openAICompatibleModelID)
-      }
-      SettingsRow(label: "Endpoint") {
-        SettingsMetadata(text: viewModel.openAICompatibleBaseURL)
-      }
-      let hasKey = !viewModel.openAICompatibleAPIKey.trimmingCharacters(
-        in: .whitespacesAndNewlines
-      ).isEmpty
-      SettingsRow(label: "API key", showsDivider: false) {
-        SettingsMetadata(text: hasKey ? "Stored safely in Keychain" : "Not set")
-      }
-    case .dayflow:
-      SettingsRow(label: "Status", showsDivider: false) {
-        SettingsMetadata(text: viewModel.statusText(for: .dayflow) ?? "Requires Dayflow Pro")
-      }
-    }
-  }
-
-  // MARK: - Connection health
-
-  private var connectionHealthSection: some View {
-    SettingsSection(
-      title: "Connection health",
-      subtitle: "Run a quick test for the primary provider."
-    ) {
-      VStack(alignment: .leading, spacing: 14) {
-        Text(viewModel.connectionHealthLabel)
-          .font(.custom("Figtree", size: 13))
-          .fontWeight(.semibold)
-          .foregroundColor(SettingsStyle.text)
-
-        switch viewModel.currentProvider {
-        case .gemini:
-          TestConnectionView(
-            model: viewModel.selectedGeminiModel,
-            onTestComplete: { _ in }
-          )
-        case .local:
-          LocalLLMTestView(
-            baseURL: $viewModel.localTestBaseURL,
-            modelId: $viewModel.localTestModelID,
-            apiKey: $viewModel.localTestAPIKey,
-            engine: viewModel.localEngine,
-            showInputs: viewModel.localEngine == .custom,
-            onTestComplete: { success in
-              viewModel.handleLocalTestCompletion(success: success)
-            }
-          )
-        case .chatGPT:
-          ChatCLITestView(
-            selectedTool: .codex,
-            onTestComplete: { _ in }
-          )
-        case .claude:
-          ChatCLITestView(
-            selectedTool: .claude,
-            onTestComplete: { _ in }
-          )
-        case .openAICompatible:
-          VStack(alignment: .leading, spacing: 10) {
-            Text(
-              "The setup test sends a small image to verify multimodal support and may incur a provider charge."
-            )
-            .font(.custom("Figtree", size: 12))
-            .foregroundColor(SettingsStyle.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            SettingsSecondaryButton(title: "Test connection") {
-              viewModel.editProviderConfiguration(.openAICompatible)
-            }
-          }
-        case .dayflow:
-          Text("Hosted cards and transcription run through your Dayflow account.")
-            .font(.custom("Figtree", size: 13))
-            .foregroundColor(SettingsStyle.secondary)
-        }
-      }
-    }
-  }
-
-  // MARK: - Failover routing
-
-  private var failoverRoutingSection: some View {
-    SettingsSection(
-      title: "Failover routing",
-      subtitle: "Choose primary and secondary providers."
-    ) {
-      VStack(alignment: .leading, spacing: 0) {
-        let providers = viewModel.routingProviders
-        ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
-          routingRow(
-            provider: provider,
-            showsDivider: index < providers.count - 1
-          )
-        }
-      }
-    }
-  }
-
-  private func routingRow(
-    provider: CompactProviderInfo,
-    showsDivider: Bool
-  ) -> some View {
+  private func routingProviderCard(_ provider: CompactProviderInfo) -> some View {
     let isConfigured = viewModel.isProviderConfigured(provider.id)
-    let isChecking = viewModel.isProviderReadinessChecking(provider.id)
     let isPrimary = viewModel.primaryRoutingProviderId == provider.id
     let isSecondary = viewModel.isBackupProvider(provider.id)
-    let canSetSecondary =
-      viewModel.canModifyRouting
-      && (viewModel.canAssignSecondary(provider.id) || (!isConfigured && !isPrimary))
+    let canSetSecondary = viewModel.canAssignSecondary(provider.id) || !isConfigured
 
-    return VStack(alignment: .leading, spacing: 10) {
-      HStack(alignment: .center, spacing: 10) {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(spacing: 10) {
         Text(provider.providerTableName)
-          .font(.custom("Figtree", size: 14))
+          .font(.custom("Nunito", size: 15))
           .fontWeight(.semibold)
-          .foregroundColor(SettingsStyle.text)
+          .foregroundColor(.black.opacity(0.82))
 
         Spacer()
 
         if isPrimary {
-          SettingsBadge(text: "PRIMARY", isAccent: true)
-        }
-        if isSecondary {
-          SettingsBadge(text: "SECONDARY")
-        }
-        if isChecking && !isPrimary && !isSecondary {
-          SettingsBadge(text: "CHECKING")
-        } else if !isChecking && !isConfigured && (isPrimary || isSecondary) {
-          SettingsBadge(text: "NEEDS ATTENTION")
-        } else if !isChecking && !isPrimary && !isSecondary && isConfigured {
-          SettingsBadge(
-            text: provider.id == .chatGPT || provider.id == .claude
-              ? "DETECTED" : "CONFIGURED")
-        } else if !isChecking && !isPrimary && !isSecondary {
-          SettingsBadge(text: "NOT SET")
+          roleTag(text: "PRIMARY", type: .orange)
+        } else if isSecondary {
+          roleTag(text: "SECONDARY", type: .blue)
+        } else if isConfigured {
+          roleTag(text: "CONFIGURED", type: .green)
+        } else {
+          roleTag(text: "NOT SET", type: .green)
         }
       }
 
       Text(provider.summary)
-        .font(.custom("Figtree", size: 12))
-        .foregroundColor(SettingsStyle.secondary)
+        .font(.custom("Nunito", size: 12))
+        .foregroundColor(.black.opacity(0.54))
         .fixedSize(horizontal: false, vertical: true)
 
-      HStack(spacing: 8) {
-        if viewModel.shouldShowDayflowUpgradeAction(for: provider.id) {
-          SettingsPrimaryButton(title: "Upgrade account", systemImage: "sparkles") {
-            viewModel.openDayflowUpgradeAccount(from: provider.id)
-          }
-        } else if provider.id == .dayflow {
-          if !isPrimary {
-            SettingsSecondaryButton(
-              title: "Set primary",
-              isDisabled: !viewModel.canModifyRouting
-            ) {
-              viewModel.setPrimaryOrSetup(provider.id)
-            }
-          }
-
-          if !isSecondary {
-            SettingsSecondaryButton(title: "Set secondary", isDisabled: !canSetSecondary) {
-              viewModel.setSecondaryOrSetup(provider.id)
-            }
-          } else {
-            SettingsSecondaryButton(title: "Unset secondary") {
-              viewModel.clearBackupProvider()
-            }
-          }
-        } else {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 8) {
           if !isConfigured {
-            SettingsSecondaryButton(title: "Setup") {
+            matrixActionButton("Setup", filled: false) {
               viewModel.beginProviderSetup(provider.id, role: .setupOnly)
             }
           }
 
-          SettingsSecondaryButton(title: "Edit configuration") {
+          matrixActionButton("Edit configuration", filled: false) {
             viewModel.editProviderConfiguration(provider.id)
           }
-
-          if !isPrimary {
-            SettingsSecondaryButton(
-              title: "Set primary",
-              isDisabled: !viewModel.canModifyRouting
-            ) {
-              viewModel.setPrimaryOrSetup(provider.id)
-            }
-          }
-
-          if !isSecondary {
-            SettingsSecondaryButton(title: "Set secondary", isDisabled: !canSetSecondary) {
-              viewModel.setSecondaryOrSetup(provider.id)
-            }
-          } else {
-            SettingsSecondaryButton(title: "Unset secondary") {
-              viewModel.clearBackupProvider()
-            }
-          }
-        }
-      }
-    }
-    .padding(.vertical, 14)
-    .overlay(alignment: .bottom) {
-      if showsDivider {
-        Rectangle().fill(SettingsStyle.divider).frame(height: 1)
-      }
-    }
-  }
-
-  // MARK: - Gemini model preference
-
-  private var geminiModelSection: some View {
-    SettingsSection(
-      title: "Gemini model preference",
-      subtitle: "Choose which Gemini model Dayflow should prioritize."
-    ) {
-      VStack(alignment: .leading, spacing: 14) {
-        Picker("Gemini model", selection: $viewModel.selectedGeminiModel) {
-          ForEach(GeminiModel.allCases, id: \.self) { model in
-            Text(model.displayName).tag(model)
-          }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .environment(\.colorScheme, .light)
-        .onChange(of: viewModel.selectedGeminiModel) { _, newValue in
-          viewModel.persistGeminiModelSelection(newValue, source: "settings")
         }
 
-        Text(GeminiModelPreference(primary: viewModel.selectedGeminiModel).fallbackSummary)
-          .font(.custom("Figtree", size: 12))
-          .foregroundColor(SettingsStyle.secondary)
-
-        Text(
-          "Dayflow automatically downgrades if your chosen model is rate limited or unavailable."
+        primaryAndSecondaryActions(
+          provider: provider,
+          isPrimary: isPrimary,
+          isSecondary: isSecondary,
+          canSetSecondary: canSetSecondary
         )
-        .font(.custom("Figtree", size: 11))
-        .foregroundColor(SettingsStyle.meta)
       }
     }
-  }
-
-  // MARK: - Prompt customization
-
-  @ViewBuilder
-  private var primaryPromptCustomizationSection: some View {
-    switch viewModel.currentProvider {
-    case .gemini:
-      promptSection(
-        title: "Gemini prompt customization",
-        subtitle: "Override Dayflow's defaults to tailor card generation.",
-        intro:
-          "Overrides apply only when their toggle is on. Unchecked sections fall back to Dayflow's defaults.",
-        sections: [
-          promptEditorConfig(
-            heading: "Card titles",
-            description: "Shape how card titles read and tweak the example list.",
-            isEnabled: $viewModel.useCustomGeminiTitlePrompt,
-            text: $viewModel.geminiTitlePromptText,
-            defaultText: GeminiPromptDefaults.titleBlock
-          ),
-          promptEditorConfig(
-            heading: "Card summaries",
-            description: "Control tone and style for the summary field.",
-            isEnabled: $viewModel.useCustomGeminiSummaryPrompt,
-            text: $viewModel.geminiSummaryPromptText,
-            defaultText: GeminiPromptDefaults.summaryBlock
-          ),
-          promptEditorConfig(
-            heading: "Detailed summaries",
-            description: "Define the minute-by-minute breakdown format and examples.",
-            isEnabled: $viewModel.useCustomGeminiDetailedPrompt,
-            text: $viewModel.geminiDetailedPromptText,
-            defaultText: GeminiPromptDefaults.detailedSummaryBlock
-          ),
-        ],
-        onReset: viewModel.resetGeminiPromptOverrides
-      )
-    case .local:
-      promptSection(
-        title: "Local prompt customization",
-        subtitle: "Adjust the prompts used for local timeline summaries.",
-        intro: "Customize the local model prompts for summary and title generation.",
-        sections: [
-          promptEditorConfig(
-            heading: "Timeline summaries",
-            description: "Control how the local model writes its 2-3 sentence card summaries.",
-            isEnabled: $viewModel.useCustomOllamaSummaryPrompt,
-            text: $viewModel.ollamaSummaryPromptText,
-            defaultText: OllamaPromptDefaults.summaryBlock
-          ),
-          promptEditorConfig(
-            heading: "Card titles",
-            description: "Adjust the tone and examples for local title generation.",
-            isEnabled: $viewModel.useCustomOllamaTitlePrompt,
-            text: $viewModel.ollamaTitlePromptText,
-            defaultText: OllamaPromptDefaults.titleBlock
-          ),
-        ],
-        onReset: viewModel.resetOllamaPromptOverrides
-      )
-    case .dayflow, .chatGPT, .claude, .openAICompatible:
-      EmptyView()
-    }
-  }
-
-  private var agentPromptCustomizationSection: some View {
-    let defaults: (titleBlock: String, summaryBlock: String, detailedSummaryBlock: String)
-    if viewModel.selectedAgentPromptProvider == .claude {
-      defaults = (
-        ClaudePromptDefaults.titleBlock,
-        ClaudePromptDefaults.summaryBlock,
-        ClaudePromptDefaults.detailedSummaryBlock
-      )
-    } else {
-      defaults = (
-        CodexPromptDefaults.titleBlock,
-        CodexPromptDefaults.summaryBlock,
-        CodexPromptDefaults.detailedSummaryBlock
-      )
-    }
-    return promptSection(
-      title: "ChatGPT and Claude prompt customization",
-      subtitle: "Keep independent card-generation prompts for each CLI provider.",
-      intro:
-        "Overrides apply only when their toggle is on. Unchecked sections fall back to Dayflow's defaults.",
-      sections: [
-        promptEditorConfig(
-          heading: "Card titles",
-          description: "Shape how card titles read and tweak the example list.",
-          isEnabled: $viewModel.useCustomAgentTitlePrompt,
-          text: $viewModel.agentTitlePromptText,
-          defaultText: defaults.titleBlock
-        ),
-        promptEditorConfig(
-          heading: "Card summaries",
-          description: "Control tone and style for the summary field.",
-          isEnabled: $viewModel.useCustomAgentSummaryPrompt,
-          text: $viewModel.agentSummaryPromptText,
-          defaultText: defaults.summaryBlock
-        ),
-        promptEditorConfig(
-          heading: "Detailed summaries",
-          description: "Define the minute-by-minute breakdown format and examples.",
-          isEnabled: $viewModel.useCustomAgentDetailedPrompt,
-          text: $viewModel.agentDetailedPromptText,
-          defaultText: defaults.detailedSummaryBlock
-        ),
-      ],
-      onReset: viewModel.resetAgentPromptOverrides,
-      showsAgentProviderPicker: true
+    .padding(14)
+    .background(Color.white.opacity(0.52))
+    .cornerRadius(10)
+    .overlay(
+      RoundedRectangle(cornerRadius: 10)
+        .stroke(Color.black.opacity(0.06), lineWidth: 1)
     )
   }
 
-  private struct PromptEditorConfig {
-    let heading: String
-    let description: String
-    let isEnabled: Binding<Bool>
-    let text: Binding<String>
-    let defaultText: String
+  private func matrixActionButton(
+    _ title: String,
+    filled: Bool,
+    enabled: Bool = true,
+    action: @escaping () -> Void
+  ) -> some View {
+    DayflowSurfaceButton(
+      action: action,
+      content: {
+        Text(title)
+          .font(.custom("Nunito", size: 12))
+          .fontWeight(.semibold)
+          .frame(width: routingButtonTextWidth, alignment: .center)
+      },
+      background: filled ? routingAccentColor : Color.white,
+      foreground: filled ? .white : .black,
+      borderColor: filled ? .clear : Color.black.opacity(0.14),
+      cornerRadius: 7,
+      horizontalPadding: 10,
+      verticalPadding: 5,
+      showOverlayStroke: filled
+    )
+    .disabled(!enabled)
+    .opacity(enabled ? 1 : 0.45)
   }
 
-  private func promptEditorConfig(
+  private func roleTag(text: String, type: BadgeType) -> some View {
+    BadgeView(text: text, type: type)
+  }
+
+  private var geminiPromptCustomizationView: some View {
+    VStack(alignment: .leading, spacing: 22) {
+      Text(
+        "Overrides apply only when their toggle is on. Unchecked sections fall back to Dayflow's defaults."
+      )
+      .font(.custom("Nunito", size: 12))
+      .foregroundColor(.black.opacity(0.55))
+      .fixedSize(horizontal: false, vertical: true)
+
+      promptSection(
+        heading: "Card titles",
+        description: "Shape how card titles read and tweak the example list.",
+        isEnabled: $viewModel.useCustomGeminiTitlePrompt,
+        text: $viewModel.geminiTitlePromptText,
+        defaultText: GeminiPromptDefaults.titleBlock
+      )
+
+      promptSection(
+        heading: "Card summaries",
+        description: "Control tone and style for the summary field.",
+        isEnabled: $viewModel.useCustomGeminiSummaryPrompt,
+        text: $viewModel.geminiSummaryPromptText,
+        defaultText: GeminiPromptDefaults.summaryBlock
+      )
+
+      promptSection(
+        heading: "Detailed summaries",
+        description: "Define the minute-by-minute breakdown format and examples.",
+        isEnabled: $viewModel.useCustomGeminiDetailedPrompt,
+        text: $viewModel.geminiDetailedPromptText,
+        defaultText: GeminiPromptDefaults.detailedSummaryBlock
+      )
+
+      HStack {
+        Spacer()
+        DayflowSurfaceButton(
+          action: viewModel.resetGeminiPromptOverrides,
+          content: {
+            HStack(spacing: 8) {
+              Image(systemName: "arrow.counterclockwise")
+              Text("Reset to Dayflow defaults")
+                .font(.custom("Nunito", size: 13))
+            }
+            .padding(.horizontal, 2)
+          },
+          background: Color.white,
+          foreground: Color(red: 0.25, green: 0.17, blue: 0),
+          borderColor: Color(hex: "FFE0A5"),
+          cornerRadius: 8,
+          horizontalPadding: 18,
+          verticalPadding: 9,
+          showOverlayStroke: true
+        )
+      }
+    }
+  }
+
+  private var ollamaPromptCustomizationView: some View {
+    VStack(alignment: .leading, spacing: 22) {
+      Text("Customize the local model prompts for summary and title generation.")
+        .font(.custom("Nunito", size: 12))
+        .foregroundColor(.black.opacity(0.55))
+        .fixedSize(horizontal: false, vertical: true)
+
+      promptSection(
+        heading: "Timeline summaries",
+        description: "Control how the local model writes its 2-3 sentence card summaries.",
+        isEnabled: $viewModel.useCustomOllamaSummaryPrompt,
+        text: $viewModel.ollamaSummaryPromptText,
+        defaultText: OllamaPromptDefaults.summaryBlock
+      )
+
+      promptSection(
+        heading: "Card titles",
+        description: "Adjust the tone and examples for local title generation.",
+        isEnabled: $viewModel.useCustomOllamaTitlePrompt,
+        text: $viewModel.ollamaTitlePromptText,
+        defaultText: OllamaPromptDefaults.titleBlock
+      )
+
+      HStack {
+        Spacer()
+        DayflowSurfaceButton(
+          action: viewModel.resetOllamaPromptOverrides,
+          content: {
+            HStack(spacing: 8) {
+              Image(systemName: "arrow.counterclockwise")
+              Text("Reset to Dayflow defaults")
+                .font(.custom("Nunito", size: 13))
+            }
+            .padding(.horizontal, 2)
+          },
+          background: Color.white,
+          foreground: Color(red: 0.25, green: 0.17, blue: 0),
+          borderColor: Color(hex: "FFE0A5"),
+          cornerRadius: 8,
+          horizontalPadding: 18,
+          verticalPadding: 9,
+          showOverlayStroke: true
+        )
+      }
+    }
+  }
+
+  private var chatCLIPromptCustomizationView: some View {
+    VStack(alignment: .leading, spacing: 22) {
+      Text(
+        "Overrides apply only when their toggle is on. Unchecked sections fall back to Dayflow's defaults."
+      )
+      .font(.custom("Nunito", size: 12))
+      .foregroundColor(.black.opacity(0.55))
+      .fixedSize(horizontal: false, vertical: true)
+
+      promptSection(
+        heading: "Card titles",
+        description: "Shape how card titles read and tweak the example list.",
+        isEnabled: $viewModel.useCustomChatCLITitlePrompt,
+        text: $viewModel.chatCLITitlePromptText,
+        defaultText: ChatCLIPromptDefaults.titleBlock
+      )
+
+      promptSection(
+        heading: "Card summaries",
+        description: "Control tone and style for the summary field.",
+        isEnabled: $viewModel.useCustomChatCLISummaryPrompt,
+        text: $viewModel.chatCLISummaryPromptText,
+        defaultText: ChatCLIPromptDefaults.summaryBlock
+      )
+
+      promptSection(
+        heading: "Detailed summaries",
+        description: "Define the minute-by-minute breakdown format and examples.",
+        isEnabled: $viewModel.useCustomChatCLIDetailedPrompt,
+        text: $viewModel.chatCLIDetailedPromptText,
+        defaultText: ChatCLIPromptDefaults.detailedSummaryBlock
+      )
+
+      HStack {
+        Spacer()
+        DayflowSurfaceButton(
+          action: viewModel.resetChatCLIPromptOverrides,
+          content: {
+            HStack(spacing: 8) {
+              Image(systemName: "arrow.counterclockwise")
+              Text("Reset to Dayflow defaults")
+                .font(.custom("Nunito", size: 13))
+            }
+            .padding(.horizontal, 2)
+          },
+          background: Color.white,
+          foreground: Color(red: 0.25, green: 0.17, blue: 0),
+          borderColor: Color(hex: "FFE0A5"),
+          cornerRadius: 8,
+          horizontalPadding: 18,
+          verticalPadding: 9,
+          showOverlayStroke: true
+        )
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func promptSection(
     heading: String,
     description: String,
     isEnabled: Binding<Bool>,
     text: Binding<String>,
     defaultText: String
-  ) -> PromptEditorConfig {
-    PromptEditorConfig(
-      heading: heading, description: description, isEnabled: isEnabled, text: text,
-      defaultText: defaultText)
-  }
-
-  private func promptSection(
-    title: String,
-    subtitle: String,
-    intro: String,
-    sections: [PromptEditorConfig],
-    onReset: @escaping () -> Void,
-    showsAgentProviderPicker: Bool = false
   ) -> some View {
-    SettingsSection(title: title, subtitle: subtitle) {
-      VStack(alignment: .leading, spacing: 18) {
-        if showsAgentProviderPicker {
-          Picker("Provider", selection: $viewModel.selectedAgentPromptProvider) {
-            Text("ChatGPT").tag(LLMProviderID.chatGPT)
-            Text("Claude").tag(LLMProviderID.claude)
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
-          .frame(maxWidth: 320)
-        }
-
-        Text(intro)
-          .font(.custom("Figtree", size: 12))
-          .foregroundColor(SettingsStyle.secondary)
-          .fixedSize(horizontal: false, vertical: true)
-
-        ForEach(sections.indices, id: \.self) { index in
-          promptEditorBlock(config: sections[index])
-        }
-
-        HStack {
-          Spacer()
-          SettingsSecondaryButton(
-            title: "Reset to Dayflow defaults",
-            systemImage: "arrow.counterclockwise",
-            action: onReset
-          )
-        }
-      }
-    }
-  }
-
-  /// A prompt-customization block: toggle + text-editor pair. Keeps its
-  /// own subtle container because the text editor needs input-affordance
-  /// against the paper background.
-  private func promptEditorBlock(config: PromptEditorConfig) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Toggle(isOn: config.isEnabled) {
-        VStack(alignment: .leading, spacing: 3) {
-          Text(config.heading)
-            .font(.custom("Figtree", size: 14))
+    VStack(alignment: .leading, spacing: 14) {
+      Toggle(isOn: isEnabled) {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(heading)
+            .font(.custom("Nunito", size: 14))
             .fontWeight(.semibold)
-            .foregroundColor(SettingsStyle.text)
-          Text(config.description)
-            .font(.custom("Figtree", size: 12))
-            .foregroundColor(SettingsStyle.secondary)
+            .foregroundColor(.black.opacity(0.75))
+          Text(description)
+            .font(.custom("Nunito", size: 12))
+            .foregroundColor(.black.opacity(0.55))
             .fixedSize(horizontal: false, vertical: true)
         }
       }
-      .toggleStyle(SwitchToggleStyle(tint: SettingsStyle.ink))
+      .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.25, green: 0.17, blue: 0)))
       .pointingHandCursor()
 
+      promptEditorBlock(
+        title: "Prompt text", text: text, isEnabled: isEnabled.wrappedValue,
+        defaultText: defaultText)
+    }
+    .padding(16)
+    .background(Color.white.opacity(0.95))
+    .cornerRadius(10)
+    .overlay(
+      RoundedRectangle(cornerRadius: 10)
+        .stroke(Color(hex: "FFE0A5"), lineWidth: 0.8)
+    )
+  }
+
+  private func promptEditorBlock(
+    title: String,
+    text: Binding<String>,
+    isEnabled: Bool,
+    defaultText: String
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(title)
+        .font(.custom("Nunito", size: 12))
+        .fontWeight(.semibold)
+        .foregroundColor(.black.opacity(0.6))
       ZStack(alignment: .topLeading) {
-        if config.text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-          Text(config.defaultText)
-            .font(.custom("Figtree", size: 12))
-            .foregroundColor(SettingsStyle.meta)
+        if text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+          Text(defaultText)
+            .font(.custom("Nunito", size: 12))
+            .foregroundColor(.black.opacity(0.4))
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .fixedSize(horizontal: false, vertical: true)
             .allowsHitTesting(false)
         }
 
-        TextEditor(text: config.text)
-          .font(.custom("Figtree", size: 12))
-          .foregroundColor(SettingsStyle.text.opacity(config.isEnabled.wrappedValue ? 1 : 0.4))
+        TextEditor(text: text)
+          .font(.custom("Nunito", size: 12))
+          .foregroundColor(.black.opacity(isEnabled ? 0.85 : 0.45))
           .scrollContentBackground(.hidden)
-          .disabled(!config.isEnabled.wrappedValue)
+          .disabled(!isEnabled)
           .padding(.horizontal, 10)
           .padding(.vertical, 8)
-          .frame(minHeight: config.isEnabled.wrappedValue ? 140 : 120)
+          .frame(minHeight: isEnabled ? 140 : 120)
+          .background(Color.white)
       }
-      .background(
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
-          .fill(Color.white.opacity(0.7))
-          .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-              .stroke(Color.black.opacity(0.12), lineWidth: 1)
-          )
+      .background(Color.white)
+      .overlay(
+        RoundedRectangle(cornerRadius: 8)
+          .stroke(Color.black.opacity(0.12), lineWidth: 1)
       )
-      .opacity(config.isEnabled.wrappedValue ? 1 : 0.6)
+      .cornerRadius(8)
+      .opacity(isEnabled ? 1 : 0.6)
+    }
+  }
+
+  @ViewBuilder
+  private var providerSummary: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      summaryRoleRow(
+        label: "Primary provider",
+        value: viewModel.providerDisplayName(viewModel.primaryRoutingProviderId),
+        roleText: "PRIMARY",
+        roleType: .orange
+      )
+      if let backupProvider = viewModel.secondaryRoutingProviderId {
+        summaryRoleRow(
+          label: "Secondary provider",
+          value: viewModel.providerDisplayName(backupProvider),
+          roleText: "SECONDARY",
+          roleType: .blue
+        )
+      } else {
+        summaryRow(label: "Secondary provider", value: "Not configured")
+      }
+
+      switch viewModel.currentProvider {
+      case "ollama":
+        summaryRow(label: "Engine", value: viewModel.localEngine.displayName)
+        summaryRow(
+          label: "Model",
+          value: viewModel.localModelId.isEmpty ? "Not configured" : viewModel.localModelId)
+        summaryRow(label: "Endpoint", value: viewModel.localBaseURL)
+        let hasKey = !viewModel.localAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        summaryRow(label: "API key", value: hasKey ? "Stored in UserDefaults" : "Not set")
+      case "gemini":
+        summaryRow(label: "Model preference", value: viewModel.selectedGeminiModel.displayName)
+        summaryRow(
+          label: "API key",
+          value: KeychainManager.shared.retrieve(for: "gemini") != nil
+            ? "Stored safely in Keychain" : "Not set")
+      case "chatgpt_claude":
+        summaryRow(label: "CLI preference", value: viewModel.chatCLIStatusLabel())
+        summaryRow(label: "Status", value: "Use Edit configuration to re-run CLI checks")
+      default:
+        summaryRow(label: "Status", value: "Coming soon")
+      }
+    }
+  }
+
+  private func summaryRoleRow(label: String, value: String, roleText: String, roleType: BadgeType)
+    -> some View
+  {
+    HStack(alignment: .firstTextBaseline, spacing: 8) {
+      Text(label)
+        .font(.custom("Nunito", size: 13))
+        .foregroundColor(.black.opacity(0.55))
+        .frame(width: 150, alignment: .leading)
+      Text(value)
+        .font(.custom("Nunito", size: 14))
+        .foregroundColor(.black.opacity(0.78))
+      roleTag(text: roleText, type: roleType)
+    }
+  }
+
+  private func summaryRow(label: String, value: String) -> some View {
+    HStack(alignment: .firstTextBaseline) {
+      Text(label)
+        .font(.custom("Nunito", size: 13))
+        .foregroundColor(.black.opacity(0.55))
+        .frame(width: 150, alignment: .leading)
+      Text(value)
+        .font(.custom("Nunito", size: 14))
+        .foregroundColor(.black.opacity(0.78))
     }
   }
 }
-
-// MARK: - Upgrade banner (kept as an exception — it's a promotional unit)
-//
-// This is the one dark surface on the settings page. Semantically it's
-// advertising, not configuration, so it gets to play by different rules.
 
 private struct LocalModelUpgradeBanner: View {
   let preset: LocalModelPreset
@@ -617,11 +625,11 @@ private struct LocalModelUpgradeBanner: View {
           .clipShape(RoundedRectangle(cornerRadius: 8))
         VStack(alignment: .leading, spacing: 4) {
           Text("Upgrade to \(preset.displayName)")
-            .font(.custom("Figtree", size: 16))
+            .font(.custom("Nunito", size: 16))
             .fontWeight(.semibold)
             .foregroundColor(.white)
           Text("Upgrade to Qwen3VL for a big improvement in quality.")
-            .font(.custom("Figtree", size: 13))
+            .font(.custom("Nunito", size: 13))
             .foregroundColor(.white.opacity(0.8))
         }
         Spacer()
@@ -635,57 +643,52 @@ private struct LocalModelUpgradeBanner: View {
               .foregroundColor(Color(red: 0.76, green: 1, blue: 0.74))
               .padding(.top, 2)
             Text(bullet)
-              .font(.custom("Figtree", size: 13))
+              .font(.custom("Nunito", size: 13))
               .foregroundColor(.white.opacity(0.85))
           }
         }
       }
 
       HStack(spacing: 12) {
-        Button(action: onKeepLegacy) {
-          Text("Keep Qwen2.5")
-            .font(.custom("Figtree", size: 13))
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 9)
-            .background(
-              RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(0.12))
-            )
-        }
-        .buttonStyle(.plain)
-        .pointingHandCursor()
-
-        Button(action: onUpgrade) {
-          HStack(spacing: 6) {
-            Text("Upgrade now")
-              .font(.custom("Figtree", size: 13))
-              .fontWeight(.semibold)
-            Image(systemName: "arrow.right")
-              .font(.system(size: 12, weight: .semibold))
-          }
-          .foregroundColor(.black)
-          .padding(.horizontal, 18)
-          .padding(.vertical, 9)
-          .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-              .fill(Color.white)
-          )
-        }
-        .buttonStyle(.plain)
-        .pointingHandCursor()
+        DayflowSurfaceButton(
+          action: onKeepLegacy,
+          content: {
+            Text("Keep Qwen2.5").font(.custom("Nunito", size: 13)).fontWeight(.semibold)
+          },
+          background: Color.white.opacity(0.12),
+          foreground: .white,
+          borderColor: Color.white.opacity(0.25),
+          cornerRadius: 8,
+          horizontalPadding: 18,
+          verticalPadding: 10,
+          showOverlayStroke: false
+        )
+        DayflowSurfaceButton(
+          action: onUpgrade,
+          content: {
+            HStack(spacing: 6) {
+              Text("Upgrade now").font(.custom("Nunito", size: 13)).fontWeight(.semibold)
+              Image(systemName: "arrow.right")
+                .font(.system(size: 13, weight: .semibold))
+            }
+          },
+          background: Color.white,
+          foreground: .black,
+          borderColor: .clear,
+          cornerRadius: 8,
+          horizontalPadding: 18,
+          verticalPadding: 10,
+          showShadow: false
+        )
       }
     }
     .padding(20)
     .background(
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
+      RoundedRectangle(cornerRadius: 18)
         .fill(Color(red: 0.16, green: 0.11, blue: 0))
     )
   }
 }
-
-// MARK: - Upgrade sheet (unchanged — it's a modal, not a settings surface)
 
 struct LocalModelUpgradeSheet: View {
   let preset: LocalModelPreset
@@ -734,19 +737,19 @@ struct LocalModelUpgradeSheet: View {
         HStack {
           VStack(alignment: .leading, spacing: 6) {
             Text("Upgrade to \(preset.displayName)")
-              .font(.custom("Figtree", size: 22))
+              .font(.custom("Nunito", size: 22))
               .fontWeight(.semibold)
             Text(
               "Follow the steps below, run a quick test, and Dayflow will switch you over automatically."
             )
-            .font(.custom("Figtree", size: 13))
-            .foregroundColor(SettingsStyle.secondary)
+            .font(.custom("Nunito", size: 13))
+            .foregroundColor(.black.opacity(0.6))
           }
           Spacer()
           Button(action: onCancel) {
             Image(systemName: "xmark.circle.fill")
               .font(.system(size: 20))
-              .foregroundColor(SettingsStyle.meta)
+              .foregroundColor(.black.opacity(0.35))
           }
           .buttonStyle(.plain)
           .pointingHandCursor()
@@ -757,18 +760,18 @@ struct LocalModelUpgradeSheet: View {
             HStack(spacing: 8) {
               Image(systemName: "sparkle")
                 .font(.system(size: 12))
-                .foregroundColor(SettingsStyle.ink)
+                .foregroundColor(Color(red: 0.39, green: 0.23, blue: 0.02))
               Text(bullet)
-                .font(.custom("Figtree", size: 13))
-                .foregroundColor(SettingsStyle.text)
+                .font(.custom("Nunito", size: 13))
+                .foregroundColor(.black.opacity(0.75))
             }
           }
         }
 
         VStack(alignment: .leading, spacing: 12) {
           Text("Which local runtime are you using?")
-            .font(.custom("Figtree", size: 14))
-            .foregroundColor(SettingsStyle.secondary)
+            .font(.custom("Nunito", size: 14))
+            .foregroundColor(.black.opacity(0.65))
           Picker("Engine", selection: $selectedEngine) {
             Text("Ollama").tag(LocalEngine.ollama)
             Text("LM Studio").tag(LocalEngine.lmstudio)
@@ -801,12 +804,24 @@ struct LocalModelUpgradeSheet: View {
         Text(
           "Once the test succeeds, Dayflow updates your settings to \(preset.displayName) automatically."
         )
-        .font(.custom("Figtree", size: 12))
-        .foregroundColor(SettingsStyle.secondary)
+        .font(.custom("Nunito", size: 12))
+        .foregroundColor(.black.opacity(0.55))
 
         HStack {
           Spacer()
-          SettingsSecondaryButton(title: "Close", action: onCancel)
+          DayflowSurfaceButton(
+            action: onCancel,
+            content: {
+              Text("Close").font(.custom("Nunito", size: 13)).fontWeight(.semibold)
+            },
+            background: Color.white,
+            foreground: .black,
+            borderColor: Color.black.opacity(0.15),
+            cornerRadius: 8,
+            horizontalPadding: 18,
+            verticalPadding: 10,
+            showOverlayStroke: false
+          )
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -827,21 +842,21 @@ struct LocalModelUpgradeSheet: View {
     let instruction = preset.instructions(for: engine == .custom ? .ollama : engine)
     VStack(alignment: .leading, spacing: 12) {
       Text(instruction.title)
-        .font(.custom("Figtree", size: 16))
+        .font(.custom("Nunito", size: 16))
         .fontWeight(.semibold)
       Text(instruction.subtitle)
-        .font(.custom("Figtree", size: 13))
-        .foregroundColor(SettingsStyle.secondary)
+        .font(.custom("Nunito", size: 13))
+        .foregroundColor(.black.opacity(0.65))
       VStack(alignment: .leading, spacing: 6) {
         ForEach(Array(instruction.bullets.enumerated()), id: \.offset) { index, bullet in
           HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("\(index + 1).")
-              .font(.custom("Figtree", size: 13))
-              .foregroundColor(SettingsStyle.secondary)
+              .font(.custom("Nunito", size: 13))
+              .foregroundColor(.black.opacity(0.55))
               .frame(width: 18, alignment: .leading)
             Text(bullet)
-              .font(.custom("Figtree", size: 13))
-              .foregroundColor(SettingsStyle.text)
+              .font(.custom("Nunito", size: 13))
+              .foregroundColor(.black.opacity(0.8))
           }
         }
       }
@@ -860,27 +875,75 @@ struct LocalModelUpgradeSheet: View {
       if let buttonTitle = instruction.buttonTitle,
         let url = instruction.buttonURL
       {
-        SettingsPrimaryButton(
-          title: buttonTitle,
-          systemImage: "arrow.down.circle.fill",
-          action: { NSWorkspace.shared.open(url) }
+        DayflowSurfaceButton(
+          action: { NSWorkspace.shared.open(url) },
+          content: {
+            HStack(spacing: 8) {
+              Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 14))
+              Text(buttonTitle)
+                .font(.custom("Nunito", size: 13))
+                .fontWeight(.semibold)
+            }
+          },
+          background: Color(red: 0.25, green: 0.17, blue: 0),
+          foreground: .white,
+          borderColor: .clear,
+          cornerRadius: 8,
+          horizontalPadding: 20,
+          verticalPadding: 10,
+          showOverlayStroke: true
         )
       }
 
       if let note = instruction.note {
         Text(note)
-          .font(.custom("Figtree", size: 12))
-          .foregroundColor(SettingsStyle.secondary)
+          .font(.custom("Nunito", size: 12))
+          .foregroundColor(.black.opacity(0.55))
       }
     }
     .padding(20)
     .background(
-      RoundedRectangle(cornerRadius: 12, style: .continuous)
+      RoundedRectangle(cornerRadius: 14)
         .fill(Color.white)
         .overlay(
-          RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .stroke(Color.black.opacity(0.1), lineWidth: 1)
+          RoundedRectangle(cornerRadius: 14)
+            .stroke(Color.black.opacity(0.08), lineWidth: 1)
         )
     )
+  }
+}
+
+private struct GeminiModelSettingsCard: View {
+  @Binding var selectedModel: GeminiModel
+  let onSelectionChanged: (GeminiModel) -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text("Gemini model")
+        .font(.custom("Nunito", size: 13))
+        .fontWeight(.semibold)
+        .foregroundColor(Color(red: 0.25, green: 0.17, blue: 0))
+
+      Picker("Gemini model", selection: $selectedModel) {
+        ForEach(GeminiModel.allCases, id: \.self) { model in
+          Text(model.displayName).tag(model)
+        }
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+      .environment(\.colorScheme, .light)
+
+      Text(GeminiModelPreference(primary: selectedModel).fallbackSummary)
+        .font(.custom("Nunito", size: 12))
+        .foregroundColor(.black.opacity(0.5))
+
+      Text("Dayflow automatically downgrades if your chosen model is rate limited or unavailable.")
+        .font(.custom("Nunito", size: 11))
+        .foregroundColor(.black.opacity(0.45))
+    }
+    .onChange(of: selectedModel) { _, newValue in
+      onSelectionChanged(newValue)
+    }
   }
 }

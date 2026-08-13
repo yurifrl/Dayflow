@@ -2,7 +2,13 @@ import AppKit
 import Foundation
 import SwiftUI
 
-// MARK: - Cached DateFormatter (creating DateFormatters is expensive due to ICU initialization)
+// MARK: - Cached DateFormatters (creating DateFormatters is expensive due to ICU initialization)
+
+private let cachedDayFormatter: DateFormatter = {
+  let formatter = DateFormatter()
+  formatter.dateFormat = "yyyy-MM-dd"
+  return formatter
+}()
 
 private let cachedTimeFormatter: DateFormatter = {
   let formatter = DateFormatter()
@@ -12,9 +18,19 @@ private let cachedTimeFormatter: DateFormatter = {
 }()
 
 private struct CanvasConfig {
+  static let hourHeight: CGFloat = 144  // 144px per hour (Canvas look)
+  static let pixelsPerMinute: CGFloat = 2.4  // 2.4px = 1 minute (Canvas look)
   static let timeColumnWidth: CGFloat = 60
   static let startHour: Int = 4  // 4 AM baseline
   static let endHour: Int = 28  // 4 AM next day
+}
+
+struct TimelineTimeLabelFramesPreferenceKey: PreferenceKey {
+  static var defaultValue: [CGRect] = []
+
+  static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
+    value.append(contentsOf: nextValue())
+  }
 }
 
 private struct TimelineCardsLayerFramePreferenceKey: PreferenceKey {
@@ -44,8 +60,11 @@ private struct CanvasPositionedActivity: Identifiable {
   // Normalized hosts for network fetch (just domain)
   let faviconPrimaryHost: String?
   let faviconSecondaryHost: String?
-  let failureCount: Int
-  let batchIds: [Int64]
+}
+
+private struct RecordingProjectionWindow {
+  let start: Date
+  let end: Date
 }
 
 struct CanvasTimelineDataView: View {
@@ -56,184 +75,123 @@ struct CanvasTimelineDataView: View {
   @Binding var refreshTrigger: Int
   let weeklyHoursFrame: CGRect
   @Binding var weeklyHoursIntersectsCard: Bool
-  let contentLeadingInset: CGFloat
-  let hourHeight: CGFloat
-  let cardTextFontSize: CGFloat
-  let cardTextFontWeight: TimelineCardTextWeight
-  let timeLabelFontSize: CGFloat
-  let cardIconLeadingInset: CGFloat
-  let cardIconTextSpacing: CGFloat
-  let cardFaviconSize: CGFloat
-  let cardFaviconVerticalOffset: CGFloat
-  let cardCompactDurationThreshold: CGFloat
-  let cardCompactVerticalPadding: CGFloat
-  let cardNormalVerticalPadding: CGFloat
-  let cardHoverScale: CGFloat
-  let cardPressedScale: CGFloat
 
   @State private var selectedCardId: String? = nil
   @State private var positionedActivities: [CanvasPositionedActivity] = []
-  @State private var recordingProjection: TimelineRecordingProjectionWindow?
+  @State private var recordingProjection: RecordingProjectionWindow?
   @State private var cardsLayerFrame: CGRect = .zero
   @State private var refreshTimer: Timer?
   @State private var didInitialScrollInView: Bool = false
-  // Gate the ScrollView's visibility on whether the initial auto-scroll has
-  // fired. Mirrors the Week view's fix for the "starts at 8 AM then flashes
-  // to 10 AM" flicker. Only flips true once per mount; never flips back, so
-  // date navigation within a mounted view doesn't re-hide content.
-  @State private var hasPerformedInitialScroll: Bool = false
   @State private var loadTask: Task<Void, Never>?
   // Staggered entrance animation state (Emil Kowalski principle: sequential reveal)
   @State private var cardEntranceProgress: [String: Bool] = [:]
-  @ObservedObject private var pauseManager = PauseManager.shared
   @EnvironmentObject private var categoryStore: CategoryStore
   @EnvironmentObject private var appState: AppState
   @EnvironmentObject private var retryCoordinator: RetryCoordinator
 
-  private var pixelsPerMinute: CGFloat {
-    hourHeight / 60
-  }
+  private let storageManager = StorageManager.shared
 
-  private var timelineHeight: CGFloat {
-    CGFloat(CanvasConfig.endHour - CanvasConfig.startHour) * hourHeight
-  }
-
-  private var recordingControlMode: RecordingControlMode {
-    RecordingControl.currentMode(appState: appState, pauseManager: pauseManager)
-  }
-
-  // Which hour-marker id the Day view should scroll to land "now" ~25% down
-  // from the viewport top — i.e. 2 hours before the current clock hour. Used
-  // by every scroll-to-now trigger (idle reset, initial load, onAppear,
-  // date-change-back-to-today). Having one source of truth avoids drift
-  // between triggers and keeps the body's inline closures tiny (fixes a
-  // Swift type-checker timeout that appeared when each closure inlined its
-  // own copy of this calculation).
-  private func nowCenteredTargetHourIndex() -> Int {
-    let currentHour = Calendar.current.component(.hour, from: Date())
-    let hoursSince4AM = currentHour >= 4 ? currentHour - 4 : (24 - 4) + currentHour
-    return max(0, hoursSince4AM - 2)
-  }
-
-  private func scrollToNowCenteredHour(with proxy: ScrollViewProxy, animated: Bool = false) {
-    let targetIndex = nowCenteredTargetHourIndex()
-    let action = {
-      proxy.scrollTo("hour-\(targetIndex)", anchor: UnitPoint(x: 0, y: 0.25))
-    }
-    if animated {
-      withAnimation(.easeInOut(duration: 0.35)) { action() }
-    } else {
-      action()
-    }
-  }
-
-  // `body` is split into two chained computed properties for the same reason
-  // `MainView.mainLayout` is: the combined modifier chain + inline closures
-  // was exceeding Swift's per-expression type-check budget. Closures with
-  // meaningful bodies (onReceive, onDisappear, the outer onAppear) are
-  // extracted to named methods below — each `some View` boundary + each
-  // function boundary gives the solver a fresh anchor point.
   var body: some View {
-    dayTimelineScrollContainer
-      .background(Color.clear)
-      .onAppear(perform: performDayTimelineOnAppear)
-      .onDisappear(perform: performDayTimelineOnDisappear)
-      .onChange(of: selectedDate) { loadActivities() }
-      .onChange(of: refreshTrigger) { loadActivities() }
-      .onChange(of: appState.isRecording) { loadActivities(animate: false) }
-      .onChange(of: hourHeight) { loadActivities(animate: false) }
-      .onReceive(
-        NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
-      ) { _ in
-        handleDayTimelineDidBecomeActive()
-      }
-      .onPreferenceChange(TimelineCardsLayerFramePreferenceKey.self) { frame in
-        cardsLayerFrame = frame
-        updateWeeklyHoursIntersection()
-      }
-      .onChange(of: weeklyHoursFrame) {
-        updateWeeklyHoursIntersection()
-      }
-  }
-
-  // Inner ScrollViewReader + scroll-trigger handlers. Held in its own `some
-  // View` property so the outer chain above sees a single opaque type.
-  // Visibility is gated on `hasPerformedInitialScroll` so the "starts at 8 AM
-  // then flashes to 10 AM" flicker can't happen — the ScrollView stays
-  // invisible until the first auto-scroll lands, then fades in.
-  private var dayTimelineScrollContainer: some View {
     ScrollViewReader { proxy in
       ScrollView(.vertical, showsIndicators: false) {
         timelineScrollContent()
       }
       .background(Color.clear)
-      .opacity(hasPerformedInitialScroll ? 1 : 0)
+      // Respond to external scroll nudges (initial or idle-triggered)
       .onChange(of: scrollToNowTick) {
-        scrollToNowCenteredHour(with: proxy)
+        // Calculate which hour to scroll to for 80% positioning
+        let currentHour = Calendar.current.component(.hour, from: Date())
+        let hoursSince4AM = currentHour >= 4 ? currentHour - 4 : (24 - 4) + currentHour
+        let targetHourIndex = max(0, min(hoursSince4AM, 24) - 2)  // 2 hours before current
+
+        // Scroll to the hour marker with 30-minute offset for better positioning
+        proxy.scrollTo("hour-\(targetHourIndex)", anchor: UnitPoint(x: 0, y: 0.25))
       }
+      // Scroll once right after activities are first loaded and laid out
       .onChange(of: positionedActivities.count) {
         guard !didInitialScrollInView, timelineIsToday(selectedDate) else { return }
         didInitialScrollInView = true
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-          scrollToNowCenteredHour(with: proxy)
-          revealInitialScroll()
+          // Calculate which hour to scroll to for 80% positioning
+          let currentHour = Calendar.current.component(.hour, from: Date())
+          let hoursSince4AM = currentHour >= 4 ? currentHour - 4 : (24 - 4) + currentHour
+          let targetHourIndex = max(0, hoursSince4AM - 2)  // 2 hours before current for 80% positioning
+          // 30-minute offset: y: 0.25 positions hour 25% down from top
+          proxy.scrollTo("hour-\(targetHourIndex)", anchor: UnitPoint(x: 0, y: 0.25))
         }
       }
+      // Ensure we scroll on first appearance when viewing Today
       .onAppear {
         if timelineIsToday(selectedDate) {
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            scrollToNowCenteredHour(with: proxy)
-            revealInitialScroll()
+            // Calculate which hour to scroll to for 80% positioning
+            let currentHour = Calendar.current.component(.hour, from: Date())
+            let hoursSince4AM = currentHour >= 4 ? currentHour - 4 : (24 - 4) + currentHour
+            let targetHourIndex = max(0, hoursSince4AM - 2)  // 2 hours before current for 80% positioning
+            // 30-minute offset: y: 0.25 positions hour 25% down from top
+            proxy.scrollTo("hour-\(targetHourIndex)", anchor: UnitPoint(x: 0, y: 0.25))
           }
-        } else {
-          // Past day: nothing to auto-scroll to. Reveal immediately so the
-          // user sees the day's content as soon as it loads rather than
-          // staring at a blank ScrollView.
-          revealInitialScroll()
         }
       }
+      // When the selected date changes back to Today (e.g., after idle), also scroll
       .onChange(of: selectedDate) { _, newDate in
-        guard timelineIsToday(newDate) else { return }
-        didInitialScrollInView = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-          scrollToNowCenteredHour(with: proxy, animated: true)
+        if timelineIsToday(newDate) {
+          didInitialScrollInView = false  // allow the data-ready scroll to fire again
+          // Give the layout a moment to update before scrolling
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeInOut(duration: 0.35)) {
+              // Calculate which hour to scroll to for 80% positioning
+              let currentHour = Calendar.current.component(.hour, from: Date())
+              let hoursSince4AM = currentHour >= 4 ? currentHour - 4 : (24 - 4) + currentHour
+              let targetHourIndex = max(0, hoursSince4AM - 2)  // 2 hours before current for 80% positioning
+              // 30-minute offset: y: 0.25 positions hour 25% down from top
+              proxy.scrollTo("hour-\(targetHourIndex)", anchor: UnitPoint(x: 0, y: 0.25))
+            }
+          }
         }
       }
     }
-  }
-
-  private func revealInitialScroll() {
-    guard !hasPerformedInitialScroll else { return }
-    withAnimation(.easeOut(duration: 0.18)) {
-      hasPerformedInitialScroll = true
-    }
-  }
-
-  // MARK: - Extracted body event handlers (type-checker load reduction)
-
-  private func performDayTimelineOnAppear() {
-    loadActivities()
-    startRefreshTimer()
-  }
-
-  private func performDayTimelineOnDisappear() {
-    stopRefreshTimer()
-    loadTask?.cancel()
-    loadTask = nil
-    weeklyHoursIntersectsCard = false
-  }
-
-  private func handleDayTimelineDidBecomeActive() {
-    loadActivities(animate: false)
-    if refreshTimer == nil {
+    .background(Color.clear)
+    .onAppear {
+      loadActivities()
       startRefreshTimer()
     }
-    AnalyticsService.shared.capture(
-      "app_became_active",
-      [
-        "screen": "timeline",
-        "selected_date_is_today": timelineIsToday(selectedDate),
-      ])
+    .onDisappear {
+      stopRefreshTimer()
+      loadTask?.cancel()
+      loadTask = nil
+      weeklyHoursIntersectsCard = false
+    }
+    .onChange(of: selectedDate) {
+      loadActivities()
+    }
+    .onChange(of: refreshTrigger) {
+      loadActivities()
+    }
+    .onChange(of: appState.isRecording) {
+      loadActivities(animate: false)
+    }
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification))
+    { _ in
+      loadActivities(animate: false)
+      if refreshTimer == nil {
+        startRefreshTimer()
+      }
+      AnalyticsService.shared.capture(
+        "app_became_active",
+        [
+          "screen": "timeline",
+          "selected_date_is_today": timelineIsToday(selectedDate),
+        ])
+    }
+    .onPreferenceChange(TimelineCardsLayerFramePreferenceKey.self) { frame in
+      cardsLayerFrame = frame
+      updateWeeklyHoursIntersection()
+    }
+    .onChange(of: weeklyHoursFrame) {
+      updateWeeklyHoursIntersection()
+    }
   }
 
   @ViewBuilder
@@ -256,8 +214,7 @@ struct CanvasTimelineDataView: View {
       currentTimeIndicator
         .zIndex(10)
     }
-    .frame(height: timelineHeight)
-    .padding(.leading, contentLeadingInset)
+    .frame(height: CGFloat(CanvasConfig.endHour - CanvasConfig.startHour) * CanvasConfig.hourHeight)
     .background(Color.clear)
   }
 
@@ -266,11 +223,11 @@ struct CanvasTimelineDataView: View {
       ForEach(0..<(CanvasConfig.endHour - CanvasConfig.startHour), id: \.self) { _ in
         VStack(spacing: 0) {
           Rectangle()
-            .fill(Color.black.opacity(0.1))
-            .frame(height: 0.75)
+            .fill(Color(hex: "E2A97B"))
+            .frame(height: 1)
           Spacer()
         }
-        .frame(height: hourHeight)
+        .frame(height: CanvasConfig.hourHeight)
       }
     }
   }
@@ -280,7 +237,7 @@ struct CanvasTimelineDataView: View {
       ForEach(CanvasConfig.startHour..<CanvasConfig.endHour, id: \.self) { hour in
         let hourIndex = hour - CanvasConfig.startHour
         Text(formatHour(hour))
-          .font(.custom("Figtree", size: timeLabelFontSize))
+          .font(.custom("Figtree", size: 13))
           .foregroundColor(Color(hex: "594838"))
           .padding(.trailing, 5)
           .padding(.top, 2)
@@ -297,7 +254,7 @@ struct CanvasTimelineDataView: View {
               )
             }
           )
-          .frame(height: hourHeight, alignment: .top)
+          .frame(height: CanvasConfig.hourHeight, alignment: .top)
           .offset(y: -8)
           .id("hour-\(hourIndex)")
       }
@@ -343,19 +300,7 @@ struct CanvasTimelineDataView: View {
             faviconSecondaryRaw: item.faviconSecondaryRaw,
             faviconPrimaryHost: item.faviconPrimaryHost,
             faviconSecondaryHost: item.faviconSecondaryHost,
-            statusLine: retryCoordinator.statusLine(for: item.batchIds),
-            failureCount: item.failureCount,
-            fontSize: cardTextFontSize,
-            fontWeight: cardTextFontWeight,
-            iconLeadingInset: cardIconLeadingInset,
-            iconTextSpacing: cardIconTextSpacing,
-            faviconSize: cardFaviconSize,
-            faviconVerticalOffset: cardFaviconVerticalOffset,
-            compactDurationThreshold: cardCompactDurationThreshold,
-            compactVerticalPadding: cardCompactVerticalPadding,
-            normalVerticalPadding: cardNormalVerticalPadding,
-            hoverScale: cardHoverScale,
-            pressedScale: cardPressedScale
+            statusLine: retryCoordinator.statusLine(for: item.activity.batchId)
           )
           .frame(width: geo.size.width, height: item.height)
           .position(x: geo.size.width / 2, y: item.yPosition + (item.height / 2))
@@ -370,13 +315,7 @@ struct CanvasTimelineDataView: View {
         }
       }
     }
-    // `.clipped()` was here previously with the comment "Prevent shadows/
-    // animations from affecting scroll geometry." Removing it because the
-    // hovered card's `.hoverScaleEffect(scale: 1.01)` rendered ~0.5% past
-    // the cards-layer bounds on each side, and the clip was chopping the
-    // scaled card's edges. Watch for any regression in vertical scroll
-    // behavior or the weekly-hours-footer overlap logic — those are the
-    // paths most likely to have depended on the old clipping.
+    .clipped()  // Prevent shadows/animations from affecting scroll geometry
     .frame(minWidth: 0, maxWidth: .infinity)
     .background(
       GeometryReader { proxy in
@@ -398,8 +337,7 @@ struct CanvasTimelineDataView: View {
   @ViewBuilder
   private var currentTimeIndicator: some View {
     if timelineIsToday(selectedDate), let projection = recordingProjection {
-      switch recordingControlMode {
-      case .active:
+      if appState.isRecording {
         let projectionHeight = recordingProjectionHeight(for: projection)
         let isCompactProjection = projectionHeight < 24
         timelineStatusCard(
@@ -417,7 +355,7 @@ struct CanvasTimelineDataView: View {
             generatingStatusText
           }
         }
-      case .pausedTimed, .pausedIndefinite:
+      } else {
         let projectionHeight = recordingProjectionHeight(for: projection)
         timelineStatusCard(
           height: projectionHeight,
@@ -432,22 +370,6 @@ struct CanvasTimelineDataView: View {
           onTap: handlePausedStatusCardTap
         ) {
           pausedStatusText
-        }
-      case .stopped:
-        let projectionHeight = recordingProjectionHeight(for: projection)
-        timelineStatusCard(
-          height: projectionHeight,
-          yPosition: calculateYPosition(for: projection.start) + 1,
-          gradient: pausedStatusGradient,
-          gradientOpacity: 1.0,
-          baseColor: .clear,
-          strokeColor: .white,
-          strokeWidth: 1,
-          shadowColor: .black.opacity(0.03),
-          shadowRadius: 2,
-          onTap: handlePausedStatusCardTap
-        ) {
-          stoppedStatusText
         }
       }
     }
@@ -538,7 +460,7 @@ struct CanvasTimelineDataView: View {
       Text("Generating your next card")
     }
     .font(
-      Font.custom("Figtree", size: 12)
+      Font.custom("Nunito", size: 12)
         .weight(.semibold)
     )
     .lineSpacing(2.4)
@@ -549,28 +471,14 @@ struct CanvasTimelineDataView: View {
   }
 
   private var pausedStatusText: some View {
-    statusText(
-      iconName: "pause.fill",
-      message: "Dayflow is paused. Click 'Resume' to generate new activity cards."
-    )
-  }
-
-  private var stoppedStatusText: some View {
-    statusText(
-      iconName: "play.fill",
-      message: "Dayflow isn't recording. Click 'Resume' to generate new activity cards."
-    )
-  }
-
-  private func statusText(iconName: String, message: String) -> some View {
     HStack(spacing: 10) {
-      Image(systemName: iconName)
+      Image(systemName: "pause.fill")
         .font(.system(size: 11, weight: .semibold))
         .foregroundColor(Color(hex: "888D95"))
-      Text(message)
+      Text("Dayflow is paused. Click 'Record' to generate new activity cards.")
     }
     .font(
-      Font.custom("Figtree", size: 12)
+      Font.custom("Nunito", size: 12)
         .weight(.regular)
     )
     .lineSpacing(2.4)
@@ -582,24 +490,13 @@ struct CanvasTimelineDataView: View {
 
   @MainActor
   private func handlePausedStatusCardTap() {
-    switch recordingControlMode {
-    case .active:
-      return
-    case .pausedTimed, .pausedIndefinite:
-      AnalyticsService.shared.capture(
-        "timeline_paused_card_clicked",
-        [
-          "action": "resume_recording"
-        ])
-      PauseManager.shared.resume(source: .userClickedMainApp)
-    case .stopped:
-      AnalyticsService.shared.capture(
-        "timeline_stopped_card_clicked",
-        [
-          "action": "start_recording"
-        ])
-      RecordingControl.start(reason: "user_main_app")
-    }
+    guard !appState.isRecording else { return }
+    AnalyticsService.shared.capture(
+      "timeline_paused_card_clicked",
+      [
+        "action": "resume_recording"
+      ])
+    PauseManager.shared.resume(source: .userClickedMainApp)
   }
 
   private func clearSelection() {
@@ -625,18 +522,20 @@ struct CanvasTimelineDataView: View {
       let calendar = Calendar.current
 
       // Normalize to noon so time components do not leak into day jumps
-      let requestedSelectedDate = await MainActor.run { self.selectedDate }
-      let logicalDate =
-        calendar.date(bySettingHour: 12, minute: 0, second: 0, of: requestedSelectedDate)
-        ?? requestedSelectedDate
+      var logicalDate = await self.selectedDate
+      logicalDate =
+        calendar.date(bySettingHour: 12, minute: 0, second: 0, of: logicalDate) ?? logicalDate
+
+      // Derive the effective timeline day (handles the 4 AM boundary for "today")
+      let timelineDate = timelineDisplayDate(from: logicalDate, now: Date())
+
+      let dayString = cachedDayFormatter.string(from: timelineDate)
 
       // Check for cancellation before expensive database read
       guard !Task.isCancelled else { return }
 
-      // Shared loader handles the 4 AM boundary, failed-card filtering, and
-      // card -> activity conversion (same path the Week view uses).
-      let payload = TimelineActivityLoader.dayPayload(for: logicalDate)
-      let dayString = payload.dayString
+      let timelineCards = self.storageManager.fetchTimelineCards(forDay: dayString)
+      let activities = self.processTimelineCards(timelineCards, for: timelineDate)
 
       // Check for cancellation before expensive processing
       guard !Task.isCancelled else { return }
@@ -644,9 +543,9 @@ struct CanvasTimelineDataView: View {
       // Mitigation transform: resolve visual overlaps by trimming larger cards
       // so that smaller cards "win". This is a display-only fix to handle
       // upstream card-generation overlap bugs without touching stored data.
-      let segments = TimelineActivityLoader.resolveDisplaySegments(from: payload.activities)
-      let recordingProjection = TimelineActivityLoader.recordingProjectionWindow(
-        for: payload.timelineDate,
+      let segments = self.resolveOverlapsForDisplay(activities)
+      let recordingProjection = self.computeRecordingProjectionWindow(
+        timelineDate: timelineDate,
         displaySegments: segments,
         now: Date()
       )
@@ -655,13 +554,13 @@ struct CanvasTimelineDataView: View {
         let y = self.calculateYPosition(for: seg.start)
         // Card spacing: -2 total (1px top + 1px bottom)
         let durationMinutes = max(0, seg.end.timeIntervalSince(seg.start) / 60)
-        let rawHeight = CGFloat(durationMinutes) * pixelsPerMinute
+        let rawHeight = CGFloat(durationMinutes) * CanvasConfig.pixelsPerMinute
         let height = max(10, rawHeight - 2)
         // Raw values for pattern matching, normalized for network fetch
         let primaryRaw = seg.activity.appSites?.primary
         let secondaryRaw = seg.activity.appSites?.secondary
-        let primaryHost = FaviconService.normalizedHost(from: primaryRaw)
-        let secondaryHost = FaviconService.normalizedHost(from: secondaryRaw)
+        let primaryHost = self.normalizeHost(primaryRaw)
+        let secondaryHost = self.normalizeHost(secondaryRaw)
 
         return CanvasPositionedActivity(
           id: seg.activity.id,
@@ -675,26 +574,12 @@ struct CanvasTimelineDataView: View {
           faviconPrimaryRaw: primaryRaw,
           faviconSecondaryRaw: secondaryRaw,
           faviconPrimaryHost: primaryHost,
-          faviconSecondaryHost: secondaryHost,
-          failureCount: seg.failureCount,
-          batchIds: seg.batchIds
+          faviconSecondaryHost: secondaryHost
         )
       }
 
       // Final cancellation check before updating UI
       guard !Task.isCancelled else { return }
-
-      let currentDayString = await MainActor.run {
-        DateFormatter.yyyyMMdd.string(
-          from: timelineDisplayDate(from: self.selectedDate, now: Date()))
-      }
-
-      guard currentDayString == dayString else {
-        timelinePerfLog(
-          "dayTimeline.load.discardStale requestedDay=\(dayString) currentDay=\(currentDayString)"
-        )
-        return
-      }
 
       await MainActor.run {
         if animate {
@@ -704,11 +589,6 @@ struct CanvasTimelineDataView: View {
         self.positionedActivities = positioned
         self.recordingProjection = recordingProjection
         self.hasAnyActivities = !positioned.isEmpty
-        if let selectedActivity,
-          !positioned.contains(where: { $0.activity.id == selectedActivity.id })
-        {
-          clearSelection()
-        }
         self.updateWeeklyHoursIntersection()
 
         if animate {
@@ -775,12 +655,295 @@ struct CanvasTimelineDataView: View {
     }
   }
 
-  private func recordingProjectionHeight(for projection: TimelineRecordingProjectionWindow)
-    -> CGFloat
-  {
+  // Normalize a domain or URL-like string to just the host
+  private func normalizeHost(_ site: String?) -> String? {
+    guard var site = site, !site.isEmpty else { return nil }
+    site = site.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if let url = URL(string: site), url.host != nil {
+      return url.host
+    }
+    if site.contains("://") {
+      if let url = URL(string: site), let host = url.host { return host }
+    } else if site.contains("/") {
+      if let url = URL(string: "https://" + site), let host = url.host { return host }
+    } else {
+      // If no TLD present, append .com for common sites like "YouTube" → "youtube.com"
+      if !site.contains(".") {
+        return site + ".com"
+      }
+      return site
+    }
+    return nil
+  }
+
+  private func processTimelineCards(_ cards: [TimelineCard], for date: Date) -> [TimelineActivity] {
+    let calendar = Calendar.current
+    let baseDate = calendar.startOfDay(for: date)
+
+    var results: [TimelineActivity] = []
+    var idCounts: [String: Int] = [:]
+    results.reserveCapacity(cards.count)
+
+    for card in cards {
+      guard let startDate = cachedTimeFormatter.date(from: card.startTimestamp),
+        let endDate = cachedTimeFormatter.date(from: card.endTimestamp)
+      else {
+        continue
+      }
+
+      let startComponents = calendar.dateComponents([.hour, .minute], from: startDate)
+      let endComponents = calendar.dateComponents([.hour, .minute], from: endDate)
+
+      guard
+        let finalStartDate = calendar.date(
+          bySettingHour: startComponents.hour ?? 0,
+          minute: startComponents.minute ?? 0,
+          second: 0,
+          of: baseDate
+        ),
+        let finalEndDate = calendar.date(
+          bySettingHour: endComponents.hour ?? 0,
+          minute: endComponents.minute ?? 0,
+          second: 0,
+          of: baseDate
+        )
+      else { continue }
+
+      var adjustedStartDate = finalStartDate
+      var adjustedEndDate = finalEndDate
+
+      let startHour = calendar.component(.hour, from: finalStartDate)
+      if startHour < 4 {
+        adjustedStartDate =
+          calendar.date(byAdding: .day, value: 1, to: finalStartDate) ?? finalStartDate
+      }
+
+      let endHour = calendar.component(.hour, from: finalEndDate)
+      if endHour < 4 {
+        adjustedEndDate = calendar.date(byAdding: .day, value: 1, to: finalEndDate) ?? finalEndDate
+      }
+
+      if adjustedEndDate < adjustedStartDate {
+        adjustedEndDate =
+          calendar.date(byAdding: .day, value: 1, to: adjustedEndDate) ?? adjustedEndDate
+      }
+
+      let baseId = TimelineActivity.stableId(
+        recordId: card.recordId,
+        batchId: card.batchId,
+        startTime: adjustedStartDate,
+        endTime: adjustedEndDate,
+        title: card.title,
+        category: card.category,
+        subcategory: card.subcategory
+      )
+
+      let seenCount = idCounts[baseId, default: 0]
+      idCounts[baseId] = seenCount + 1
+      let finalId = seenCount == 0 ? baseId : "\(baseId)-\(seenCount)"
+      #if DEBUG
+        if seenCount > 0 {
+          print(
+            "[CanvasTimelineDataView] Duplicate TimelineActivity.id detected: \(baseId) -> \(finalId)"
+          )
+        }
+      #endif
+
+      results.append(
+        TimelineActivity(
+          id: finalId,
+          recordId: card.recordId,
+          batchId: card.batchId,
+          startTime: adjustedStartDate,
+          endTime: adjustedEndDate,
+          title: card.title,
+          summary: card.summary,
+          detailedSummary: card.detailedSummary,
+          category: card.category,
+          subcategory: card.subcategory,
+          distractions: card.distractions,
+          videoSummaryURL: card.videoSummaryURL,
+          screenshot: nil,
+          appSites: card.appSites,
+          isBackupGenerated: card.isBackupGenerated
+        ))
+    }
+
+    return results
+  }
+
+  // Trims larger overlapping cards so smaller cards keep their full range.
+  // This is a mitigation transform for occasional upstream timeline card overlap bugs.
+  private struct DisplaySegment {
+    let activity: TimelineActivity
+    var start: Date
+    var end: Date
+  }
+
+  private func resolveOverlapsForDisplay(_ activities: [TimelineActivity]) -> [DisplaySegment] {
+    // Start with raw segments mirroring activity times
+    var segments = activities.map {
+      DisplaySegment(activity: $0, start: $0.startTime, end: $0.endTime)
+    }
+    guard segments.count > 1 else { return segments }
+
+    // Sort by start time for deterministic processing
+    segments.sort { $0.start < $1.start }
+
+    // Iteratively resolve overlaps until stable, with a safety cap
+    var changed = true
+    var passes = 0
+    let maxPasses = 8
+    while changed && passes < maxPasses {
+      changed = false
+      passes += 1
+
+      // Compare each pair that could overlap (sweep-style)
+      var i = 0
+      while i < segments.count {
+        var j = i + 1
+        while j < segments.count {
+          // Early exit if no chance to overlap (since sorted by start)
+          if segments[j].start >= segments[i].end { break }
+
+          // Compute overlap window
+          let s1 = segments[i]
+          let s2 = segments[j]
+          let overlapStart = max(s1.start, s2.start)
+          let overlapEnd = min(s1.end, s2.end)
+
+          if overlapEnd > overlapStart {
+            // There is overlap — decide small vs big by duration
+            let d1 = s1.end.timeIntervalSince(s1.start)
+            let d2 = s2.end.timeIntervalSince(s2.start)
+            let smallIdx = d1 <= d2 ? i : j
+            let bigIdx = d1 <= d2 ? j : i
+
+            // Reload references after indices chosen
+            let small = segments[smallIdx]
+            var big = segments[bigIdx]
+
+            // Cases
+            if big.start < small.start && small.end < big.end {
+              // Small fully inside big — keep the longer side of big
+              let left = small.start.timeIntervalSince(big.start)
+              let right = big.end.timeIntervalSince(small.end)
+              if right >= left {
+                big.start = small.end
+              } else {
+                big.end = small.start
+              }
+            } else if small.start <= big.start && big.start < small.end {
+              // Overlap at big start — trim big.start to small.end
+              big.start = small.end
+            } else if small.start < big.end && big.end <= small.end {
+              // Overlap at big end — trim big.end to small.start
+              big.end = small.start
+            }
+
+            // Validate and apply change
+            if big.end <= big.start {
+              // Trimmed away — remove big
+              segments.remove(at: bigIdx)
+              changed = true
+              // Restart inner loop from j = i+1 since indices shifted
+              j = i + 1
+              continue
+            } else if big.start != segments[bigIdx].start || big.end != segments[bigIdx].end {
+              segments[bigIdx] = big
+              changed = true
+              // Resort local order if start changed
+              segments.sort { $0.start < $1.start }
+              // Restart scanning from current i
+              j = i + 1
+              continue
+            }
+          }
+          j += 1
+        }
+        i += 1
+      }
+    }
+
+    return segments
+  }
+
+  private func recordingProjectionHeight(for projection: RecordingProjectionWindow) -> CGFloat {
     let durationMinutes = max(0, projection.end.timeIntervalSince(projection.start) / 60)
-    let rawHeight = CGFloat(durationMinutes) * pixelsPerMinute
+    let rawHeight = CGFloat(durationMinutes) * CanvasConfig.pixelsPerMinute
     return max(10, rawHeight - 2)
+  }
+
+  private func computeRecordingProjectionWindow(
+    timelineDate: Date,
+    displaySegments: [DisplaySegment],
+    now: Date
+  ) -> RecordingProjectionWindow? {
+    guard timelineIsToday(timelineDate, now: now) else { return nil }
+
+    let dayInfo = timelineDate.getDayInfoFor4AMBoundary()
+    let dayStart = dayInfo.startOfDay
+    let dayEnd = dayInfo.endOfDay
+    let cycleDuration: TimeInterval = 15 * 60
+    let hardCap: TimeInterval = 40 * 60
+    guard cycleDuration > 0 else { return nil }
+
+    let centeredStart = now.addingTimeInterval(-(cycleDuration / 2))
+    var windowStart = max(dayStart, centeredStart)
+    var windowEnd = windowStart.addingTimeInterval(cycleDuration)
+    if windowEnd > dayEnd {
+      windowEnd = dayEnd
+      windowStart = max(dayStart, windowEnd.addingTimeInterval(-cycleDuration))
+    }
+    windowEnd = min(windowEnd, windowStart.addingTimeInterval(hardCap))
+
+    if windowEnd <= windowStart {
+      return nil
+    }
+
+    let sortedSegments = displaySegments.sorted { $0.start < $1.start }
+
+    var moved = true
+    var iterations = 0
+    let maxIterations = max(1, sortedSegments.count + 2)
+    while moved {
+      moved = false
+      let previousStart = windowStart
+      let previousEnd = windowEnd
+      for segment in sortedSegments {
+        let intersects = segment.end > windowStart && segment.start < windowEnd
+        if intersects {
+          windowStart = segment.end
+          windowEnd = windowStart.addingTimeInterval(cycleDuration)
+          if windowEnd > dayEnd {
+            windowEnd = dayEnd
+            windowStart = max(dayStart, windowEnd.addingTimeInterval(-cycleDuration))
+          }
+          windowEnd = min(windowEnd, windowStart.addingTimeInterval(hardCap))
+          moved = true
+          break
+        }
+      }
+      if windowStart >= dayEnd {
+        return nil
+      }
+      if moved {
+        iterations += 1
+        // Guard against non-progress loops caused by day-end clamping.
+        if windowStart == previousStart && windowEnd == previousEnd {
+          return nil
+        }
+        if iterations >= maxIterations {
+          return nil
+        }
+      }
+    }
+
+    if windowEnd <= windowStart {
+      return nil
+    }
+
+    return RecordingProjectionWindow(start: windowStart, end: windowEnd)
   }
 
   private func startRefreshTimer() {
@@ -808,7 +971,7 @@ struct CanvasTimelineDataView: View {
     }
 
     let totalMinutes = hoursSince4AM * 60 + minute
-    return CGFloat(totalMinutes) * pixelsPerMinute
+    return CGFloat(totalMinutes) * CanvasConfig.pixelsPerMinute
   }
 
   private func formatHour(_ hour: Int) -> String {
@@ -856,14 +1019,14 @@ extension CanvasTimelineDataView {
     // When scrolled to .top, this positions current time at ~80% down the viewport
     // Adjust hoursAbove to fine-tune: 5 = current time appears higher, 7 = lower
     let hoursAbove: CGFloat = 6
-    let anchorY = yNow - (hoursAbove * hourHeight)
+    let anchorY = yNow - (hoursAbove * CanvasConfig.hourHeight)
 
     // Create a frame that spans the full timeline height
     // Then position the anchor absolutely within it
     Color.clear
       .frame(
         width: 1,
-        height: timelineHeight
+        height: CGFloat(CanvasConfig.endHour - CanvasConfig.startHour) * CanvasConfig.hourHeight
       )
       .overlay(
         Rectangle()
@@ -875,6 +1038,199 @@ extension CanvasTimelineDataView {
       )
       .allowsHitTesting(false)
       .accessibilityHidden(true)
+  }
+}
+
+struct CanvasActivityCardStyle {
+  let text: Color
+  let time: Color
+  let accent: Color
+  let isIdle: Bool
+}
+
+struct CanvasActivityCard: View {
+  @AppStorage("showTimelineAppIcons") private var showTimelineAppIcons: Bool = true
+
+  let title: String
+  let time: String
+  let height: CGFloat
+  let durationMinutes: Double
+  let style: CanvasActivityCardStyle
+  let isSelected: Bool
+  let isSystemCategory: Bool
+  let isBackupGenerated: Bool
+  let onTap: () -> Void
+  // Raw values for pattern matching (may contain paths)
+  let faviconPrimaryRaw: String?
+  let faviconSecondaryRaw: String?
+  // Normalized hosts for network fetch
+  let faviconPrimaryHost: String?
+  let faviconSecondaryHost: String?
+  let statusLine: String?
+
+  private var isFailedCard: Bool {
+    title == "Processing failed"
+  }
+
+  private var isCompactCard: Bool {
+    durationMinutes < 13
+  }
+
+  private var backupIndicator: some View {
+    Text("!")
+      .font(Font.custom("Nunito", size: 9).weight(.semibold))
+      .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
+      .frame(width: 14, height: 14)
+      .background(
+        Circle()
+          .fill(Color(red: 0.96, green: 0.94, blue: 0.91).opacity(0.9))
+      )
+      .overlay(
+        Circle()
+          .stroke(Color(red: 0.9, green: 0.9, blue: 0.9), lineWidth: 0.75)
+      )
+      .help(
+        "This card fell back to a lower-quality Gemini model due to rate limiting, so output quality may be lower."
+      )
+  }
+
+  private var selectionStroke: Color {
+    if isSystemCategory {
+      return Color(red: 1, green: 0.16, blue: 0.11)
+    }
+    return style.accent
+  }
+
+  var body: some View {
+    Button(action: {
+      withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+        onTap()
+      }
+    }) {
+      HStack(alignment: .top, spacing: isFailedCard ? 10 : 8) {
+        if durationMinutes >= 10 {
+          if isFailedCard {
+            VStack(alignment: .leading, spacing: 4) {
+              HStack(alignment: .top, spacing: 8) {
+                Text(title)
+                  .font(
+                    Font.custom("Nunito", size: 13)
+                      .weight(.semibold)
+                  )
+                  .foregroundColor(style.text)
+
+                Spacer()
+
+                Text(time)
+                  .font(
+                    Font.custom("Nunito", size: 10)
+                      .weight(.medium)
+                  )
+                  .foregroundColor(style.time)
+                  .lineLimit(1)
+                  .truncationMode(.tail)
+              }
+
+              if let statusLine = statusLine {
+                Text(statusLine)
+                  .font(Font.custom("Nunito", size: 10))
+                  .foregroundColor(Color(red: 0.55, green: 0.45, blue: 0.4))
+                  .lineLimit(1)
+                  .truncationMode(.tail)
+              }
+            }
+          } else {
+            if showTimelineAppIcons && (faviconPrimaryRaw != nil || faviconSecondaryRaw != nil) {
+              FaviconOrSparkleView(
+                primaryRaw: faviconPrimaryRaw,
+                secondaryRaw: faviconSecondaryRaw,
+                primaryHost: faviconPrimaryHost,
+                secondaryHost: faviconSecondaryHost
+              )
+              .frame(width: 16, height: 16)
+            }
+
+            Text(title)
+              .font(
+                Font.custom("Nunito", size: 13)
+                  .weight(.semibold)
+              )
+              .foregroundColor(style.text)
+
+            Spacer()
+
+            HStack(spacing: 6) {
+              if isBackupGenerated {
+                backupIndicator
+              }
+
+              Text(time)
+                .font(
+                  Font.custom("Nunito", size: 10)
+                    .weight(.medium)
+                )
+                .foregroundColor(style.time)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            }
+          }
+        }
+      }
+      .padding(.horizontal, 10)
+      .padding(.vertical, isFailedCard ? 0 : (isCompactCard ? 0 : 6))
+      .frame(
+        maxWidth: .infinity,
+        minHeight: height,
+        maxHeight: height,
+        alignment: isCompactCard ? .leading : .topLeading
+      )
+      .background(isFailedCard ? Color(hex: "FFECE4") : Color(hex: "FFFBF8"))
+      .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+      .overlay(
+        RoundedRectangle(cornerRadius: 2, style: .continuous)
+          .inset(by: 0.25)
+          .stroke(
+            isFailedCard ? Color(red: 1, green: 0.16, blue: 0.11) : Color(hex: "E8E8E8"),
+            style: isFailedCard
+              ? StrokeStyle(lineWidth: 0.5, dash: [2.5, 2.5]) : StrokeStyle(lineWidth: 0.25)
+          )
+      )
+      .overlay(alignment: .leading) {
+        if !isFailedCard {
+          UnevenRoundedRectangle(
+            topLeadingRadius: 2,
+            bottomLeadingRadius: 2,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: 0,
+            style: .continuous
+          )
+          .fill(style.accent)
+          .frame(width: 6)
+        }
+      }
+      // Selection halo for the active activity
+      .overlay(
+        RoundedRectangle(cornerRadius: 2, style: .continuous)
+          .stroke(selectionStroke, lineWidth: 1.5)
+          .opacity(isSelected ? 1 : 0)
+      )
+    }
+    .buttonStyle(CanvasCardButtonStyle())
+    .pointingHandCursor()
+    .hoverScaleEffect(scale: 1.01)
+    .padding(.horizontal, 6)
+  }
+}
+
+struct CanvasCardButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .scaleEffect(configuration.isPressed ? 0.97 : 1)
+      .brightness(configuration.isPressed ? -0.02 : 0)
+      .animation(
+        .spring(response: 0.3, dampingFraction: 0.6),
+        value: configuration.isPressed
+      )
   }
 }
 
@@ -893,21 +1249,7 @@ extension CanvasTimelineDataView {
         hasAnyActivities: .constant(true),
         refreshTrigger: $refresh,
         weeklyHoursFrame: .zero,
-        weeklyHoursIntersectsCard: $weeklyHoursIntersectsCard,
-        contentLeadingInset: 0,
-        hourHeight: TimelineScale.hourHeight,
-        cardTextFontSize: TimelineTypography.cardTextFontSize,
-        cardTextFontWeight: TimelineTypography.cardTextFontWeight,
-        timeLabelFontSize: TimelineTypography.timeLabelFontSize,
-        cardIconLeadingInset: TimelineCardLayout.iconLeadingInset,
-        cardIconTextSpacing: TimelineCardLayout.iconTextSpacing,
-        cardFaviconSize: TimelineCardLayout.faviconSize,
-        cardFaviconVerticalOffset: TimelineCardLayout.faviconVerticalOffset,
-        cardCompactDurationThreshold: TimelineCardLayout.compactDurationThreshold,
-        cardCompactVerticalPadding: TimelineCardLayout.compactVerticalPadding,
-        cardNormalVerticalPadding: TimelineCardLayout.normalVerticalPadding,
-        cardHoverScale: TimelineCardLayout.hoverScale,
-        cardPressedScale: TimelineCardLayout.pressedScale
+        weeklyHoursIntersectsCard: $weeklyHoursIntersectsCard
       )
       .frame(width: 800, height: 600)
       .environmentObject(CategoryStore())
@@ -916,4 +1258,45 @@ extension CanvasTimelineDataView {
     }
   }
   return PreviewWrapper()
+}
+
+private struct FaviconOrSparkleView: View {
+  // Raw values for pattern matching (may contain paths like "developer.apple.com/xcode")
+  let primaryRaw: String?
+  let secondaryRaw: String?
+  // Normalized hosts for network fetch
+  let primaryHost: String?
+  let secondaryHost: String?
+  @State private var image: NSImage? = nil
+  @State private var didStart = false
+
+  var body: some View {
+    Group {
+      if let img = image {
+        Image(nsImage: img)
+          .resizable()
+          .interpolation(.high)
+          .aspectRatio(contentMode: .fit)
+          .frame(width: 16, height: 16)
+          .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+      } else {
+        Color.clear
+      }
+    }
+    .onAppear {
+      guard !didStart else { return }
+      didStart = true
+      guard primaryRaw != nil || secondaryRaw != nil else { return }
+      Task { @MainActor in
+        if let img = await FaviconService.shared.fetchFavicon(
+          primaryRaw: primaryRaw,
+          secondaryRaw: secondaryRaw,
+          primaryHost: primaryHost,
+          secondaryHost: secondaryHost
+        ) {
+          self.image = img
+        }
+      }
+    }
+  }
 }

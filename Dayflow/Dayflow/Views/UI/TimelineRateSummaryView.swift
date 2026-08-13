@@ -18,48 +18,6 @@ private enum TimelineDeleteButtonState: Equatable {
   case deleting
 }
 
-struct ThumbRatingButtons: View {
-  var selectedDirection: TimelineRatingDirection?
-  var isEnabled: Bool = true
-  var onRate: (TimelineRatingDirection) -> Void
-
-  var body: some View {
-    HStack(spacing: 0) {
-      rateButton(for: .up)
-      rateButton(for: .down)
-    }
-  }
-
-  @ViewBuilder
-  private func rateButton(for direction: TimelineRatingDirection) -> some View {
-    let isSelected = selectedDirection == direction
-    Button(action: {
-      guard isEnabled else { return }
-      onRate(direction)
-    }) {
-      Image("ThumbsUp")
-        .renderingMode(.original)
-        .resizable()
-        .scaledToFit()
-        .frame(width: 14, height: 14)
-        .scaleEffect(x: direction == .down ? -1 : 1, y: direction == .down ? -1 : 1)
-        .padding(4)
-        .frame(width: 22, height: 22)
-        .background(
-          Circle()
-            .fill(isSelected ? Color.white : Color.clear)
-            .shadow(
-              color: isSelected ? Color.black.opacity(0.08) : Color.clear, radius: 6, x: 0, y: 3)
-        )
-    }
-    .buttonStyle(.plain)
-    .contentShape(Rectangle())
-    .hoverScaleEffect(enabled: isEnabled, scale: 1.02)
-    .pointingHandCursorOnHover(enabled: isEnabled, reassertOnPressEnd: true)
-    .accessibilityLabel(direction == .up ? Text("Thumbs up") : Text("Thumbs down"))
-  }
-}
-
 struct TimelineRateSummaryView: View {
 
   var title: String = "Rate this summary"
@@ -86,18 +44,15 @@ struct TimelineRateSummaryView: View {
 
       HStack(spacing: 8) {
         Text(title)
-          .font(Font.custom("Figtree", size: 12).weight(.medium))
+          .font(Font.custom("Nunito", size: 12).weight(.medium))
           .foregroundColor(
             Color(red: 0.49, green: 0.47, blue: 0.46)
               .opacity(isEnabled ? 0.95 : 0.45)
           )
 
-        ThumbRatingButtons(selectedDirection: selectedDirection, isEnabled: isEnabled) {
-          direction in
-          withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-            selectedDirection = direction
-          }
-          onRate?(direction)
+        HStack(spacing: 0) {
+          rateButton(for: .up)
+          rateButton(for: .down)
         }
       }
     }
@@ -138,13 +93,21 @@ struct TimelineRateSummaryView: View {
             .progressViewStyle(CircularProgressViewStyle(tint: .white))
             .transition(transition)
         } else if deleteButtonState == .confirming {
-          Text("Confirm")
-            .font(Font.custom("Figtree", size: 12).weight(.medium))
-            .transition(transition)
+          HStack(spacing: 4) {
+            Image(systemName: "checkmark")
+              .font(.system(size: 10, weight: .semibold))
+            Text("Confirm")
+              .font(Font.custom("Nunito", size: 10).weight(.semibold))
+          }
+          .transition(transition)
         } else {
-          Text("Delete")
-            .font(Font.custom("Figtree", size: 12).weight(.medium))
-            .transition(transition)
+          HStack(spacing: 4) {
+            Image(systemName: "trash")
+              .font(.system(size: 10, weight: .semibold))
+            Text("Delete")
+              .font(Font.custom("Nunito", size: 10).weight(.medium))
+          }
+          .transition(transition)
         }
       }
       .padding(.horizontal, isConfirmVisualState ? 9 : 0)
@@ -224,6 +187,37 @@ struct TimelineRateSummaryView: View {
     }
   }
 
+  @ViewBuilder
+  private func rateButton(for direction: TimelineRatingDirection) -> some View {
+    let isSelected = selectedDirection == direction
+    Button(action: {
+      guard isEnabled else { return }
+      withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+        selectedDirection = direction
+      }
+      onRate?(direction)
+    }) {
+      Image("ThumbsUp")
+        .renderingMode(.original)
+        .resizable()
+        .scaledToFit()
+        .frame(width: 14, height: 14)
+        .scaleEffect(x: direction == .down ? -1 : 1, y: direction == .down ? -1 : 1)
+        .padding(4)
+        .frame(width: 22, height: 22)
+        .background(
+          Circle()
+            .fill(isSelected ? Color.white : Color.clear)
+            .shadow(
+              color: isSelected ? Color.black.opacity(0.08) : Color.clear, radius: 6, x: 0, y: 3)
+        )
+    }
+    .buttonStyle(.plain)
+    .contentShape(Rectangle())
+    .hoverScaleEffect(enabled: isEnabled, scale: 1.02)
+    .pointingHandCursorOnHover(enabled: isEnabled, reassertOnPressEnd: true)
+    .accessibilityLabel(direction == .up ? Text("Thumbs up") : Text("Thumbs down"))
+  }
 }
 
 #Preview("TimelineRateSummaryView", traits: .sizeThatFitsLayout) {

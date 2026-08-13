@@ -4,26 +4,21 @@ import SwiftUI
 @MainActor
 struct StatusMenuView: View {
   let dismissMenu: () -> Void
-  @ObservedObject private var appState = AppState.shared
   @ObservedObject private var pauseManager = PauseManager.shared
   private let updaterManager = UpdaterManager.shared
-
-  private var controlMode: RecordingControlMode {
-    RecordingControl.currentMode(appState: appState, pauseManager: pauseManager)
-  }
 
   var body: some View {
     VStack(spacing: 6) {
       // Pause/Resume section
-      if controlMode == .active {
-        PauseSection(onPause: pauseRecording)
-      } else {
+      if pauseManager.isPaused {
         PausedSection(onResume: resumeRecording)
+      } else {
+        PauseSection(onPause: pauseRecording)
       }
 
       MenuDivider()
 
-      MenuRow(title: "Open Dayflow", assetImage: "DayflowLogo", action: openDayflow)
+      MenuRow(title: "Open Dayflow", systemImage: "macwindow", action: openDayflow)
       MenuRow(title: "Open Recordings", action: openRecordingsFolder)
       MenuRow(title: "Check for Updates", action: checkForUpdates)
 
@@ -43,23 +38,32 @@ struct StatusMenuView: View {
   }
 
   private func resumeRecording() {
-    if pauseManager.isPaused {
-      pauseManager.resume(source: .userClickedMenuBar)
-    } else {
-      RecordingControl.start(reason: "user_menu_bar")
-    }
+    pauseManager.resume(source: .userClickedMenuBar)
   }
 
   private func openDayflow() {
+    let menuWindowNumber = NSApp.keyWindow?.windowNumber
+
     performAfterMenuDismiss {
+      // Only show Dock icon if user preference allows it
       let showDockIcon = UserDefaults.standard.object(forKey: "showDockIcon") as? Bool ?? true
       if showDockIcon {
         NSApp.setActivationPolicy(.regular)
       }
-
       NSApp.unhide(nil)
-      MainWindowController.shared.showMainWindow()
       NSApp.activate(ignoringOtherApps: true)
+
+      var showedWindow = false
+      for window in NSApp.windows
+      where window.canBecomeKey && window.windowNumber != menuWindowNumber {
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        window.makeKeyAndOrderFront(nil)
+        showedWindow = true
+      }
+
+      if !showedWindow {
+        MainWindowManager.shared.showMainWindow()
+      }
     }
   }
 
@@ -236,7 +240,6 @@ private struct CountdownBadge: View {
 private struct MenuRow: View {
   let title: String
   var systemImage: String? = nil
-  var assetImage: String? = nil
   var accent: Color = .primary
   var keepsMenuOpen: Bool = false
   var action: () -> Void
@@ -250,12 +253,6 @@ private struct MenuRow: View {
           Image(systemName: systemImage)
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(accent)
-            .frame(width: 17)
-        } else if let assetImage {
-          Image(assetImage)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 16, height: 16)
             .frame(width: 17)
         } else {
           // Empty spacer to align text with rows that have icons
