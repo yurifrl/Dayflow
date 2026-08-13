@@ -152,41 +152,6 @@ if [[ -d "${SPARKLE_DIR}" ]]; then
     "${SPARKLE_DIR}"
 fi
 
-# Re-sign Sentry framework to ensure proper resource sealing
-SENTRY_DIR="${SANITIZED_APP}/Contents/Frameworks/Sentry.framework"
-if [[ -d "${SENTRY_DIR}" ]]; then
-  # Sign the versioned framework (handles both Current symlink and direct path)
-  codesign -vvv --force -o runtime --sign "${SIGN_ID}" \
-    "${SENTRY_DIR}/Versions/Current" 2>/dev/null || \
-  codesign -vvv --force -o runtime --sign "${SIGN_ID}" \
-    "${SENTRY_DIR}"
-fi
-
-# Inject analytics and crash reporting keys (optional) before final app signing
-if [[ -n "${POSTHOG_API_KEY:-}" ]]; then
-  /usr/libexec/PlistBuddy -c "Set :PHPostHogApiKey ${POSTHOG_API_KEY}" "${SANITIZED_APP}/Contents/Info.plist" \
-    >/dev/null 2>&1 || /usr/libexec/PlistBuddy -c "Add :PHPostHogApiKey string ${POSTHOG_API_KEY}" "${SANITIZED_APP}/Contents/Info.plist"
-fi
-if [[ -n "${POSTHOG_HOST:-}" ]]; then
-  /usr/libexec/PlistBuddy -c "Set :PHPostHogHost ${POSTHOG_HOST}" "${SANITIZED_APP}/Contents/Info.plist" \
-    >/dev/null 2>&1 || /usr/libexec/PlistBuddy -c "Add :PHPostHogHost string ${POSTHOG_HOST}" "${SANITIZED_APP}/Contents/Info.plist"
-fi
-if [[ -n "${SENTRY_DSN:-}" ]]; then
-  /usr/libexec/PlistBuddy -c "Set :SentryDSN ${SENTRY_DSN}" "${SANITIZED_APP}/Contents/Info.plist" \
-    >/dev/null 2>&1 || /usr/libexec/PlistBuddy -c "Add :SentryDSN string ${SENTRY_DSN}" "${SANITIZED_APP}/Contents/Info.plist"
-fi
-if [[ -n "${SENTRY_ENV:-}" ]]; then
-  /usr/libexec/PlistBuddy -c "Set :SentryEnvironment ${SENTRY_ENV}" "${SANITIZED_APP}/Contents/Info.plist" \
-    >/dev/null 2>&1 || /usr/libexec/PlistBuddy -c "Add :SentryEnvironment string ${SENTRY_ENV}" "${SANITIZED_APP}/Contents/Info.plist"
-fi
-if [[ -z "${DAYFLOW_BACKEND_URL:-}" ]]; then
-  echo "ERROR: DAYFLOW_BACKEND_URL must be set before building a release DMG." >&2
-  exit 1
-fi
-RESOLVED_DAYFLOW_BACKEND_URL="${DAYFLOW_BACKEND_URL}"
-/usr/libexec/PlistBuddy -c "Set :DayflowBackendURL ${RESOLVED_DAYFLOW_BACKEND_URL}" "${SANITIZED_APP}/Contents/Info.plist" \
-  >/dev/null 2>&1 || /usr/libexec/PlistBuddy -c "Add :DayflowBackendURL string ${RESOLVED_DAYFLOW_BACKEND_URL}" "${SANITIZED_APP}/Contents/Info.plist"
-
 # Resolve $(PRODUCT_BUNDLE_IDENTIFIER) in entitlements before codesigning
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${SANITIZED_APP}/Contents/Info.plist" 2>/dev/null || true)
 RESOLVED_ENTS="${SANITIZED_DIR}/resolved.entitlements"

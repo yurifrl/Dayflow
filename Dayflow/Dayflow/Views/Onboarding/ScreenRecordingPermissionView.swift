@@ -32,17 +32,166 @@ struct ScreenRecordingPermissionView: View {
     case needsAction  // requested or settings opened, awaiting quit & reopen / toggle
   }
 
-  private let brownAccent = Color(hex: "492304")
-  private let privacyTextColor = Color(hex: "89380E")
-
   var body: some View {
-    GeometryReader { geo in
-      ZStack(alignment: .bottomTrailing) {
-        content(size: geo.size)
+    HStack(spacing: 60) {
+      // Left side - text and controls
+      VStack(alignment: .leading, spacing: 24) {
+        Text("Last step!")
+          .font(.custom("Nunito", size: 20))
+          .foregroundColor(.black.opacity(0.7))
+          .multilineTextAlignment(.leading)
+          .fixedSize(horizontal: false, vertical: true)
+          .padding(.bottom, 20)
+
+        Text("Screen Recording")
+          .font(.custom("Nunito", size: 32))
+          .fontWeight(.bold)
+          .foregroundColor(.black.opacity(0.9))
+
+        Text(
+          "Screen recordings are stored locally on your Mac and can be processed entirely on-device using local AI models."
+        )
+        .font(.custom("Nunito", size: 16))
+        .foregroundColor(.black.opacity(0.6))
+        .fixedSize(horizontal: false, vertical: true)
+
+        // State-based messaging
+        Group {
+          switch permissionState {
+          case .notRequested:
+            EmptyView()
+          case .granted:
+            Text("✓ Permission granted! Click Next to continue.")
+              .font(.custom("Nunito", size: 14))
+              .foregroundColor(.green)
+          case .needsAction:
+            Text("Turn on Screen Recording for Dayflow, then quit and reopen the app to finish.")
+              .font(.custom("Nunito", size: 14))
+              .foregroundColor(.orange)
+          }
+        }
+        .padding(.top, 8)
+
+        // Action buttons
+        Group {
+          switch permissionState {
+          case .notRequested:
+            DayflowSurfaceButton(
+              action: { requestPermission() },
+              content: {
+                HStack {
+                  if isCheckingPermission {
+                    ProgressView()
+                      .scaleEffect(0.8)
+                      .progressViewStyle(CircularProgressViewStyle())
+                  }
+                  Text(isCheckingPermission ? "Checking..." : "Grant Permission")
+                    .font(.custom("Nunito", size: 16))
+                    .fontWeight(.medium)
+                }
+              },
+              background: Color(red: 0.25, green: 0.17, blue: 0),
+              foreground: .white,
+              borderColor: .clear,
+              cornerRadius: 8,
+              horizontalPadding: 24,
+              verticalPadding: 12,
+              showOverlayStroke: true
+            )
+            .disabled(isCheckingPermission)
+          case .needsAction:
+            HStack(spacing: 12) {
+              DayflowSurfaceButton(
+                action: openSystemSettings,
+                content: {
+                  Text("Open System Settings")
+                    .font(.custom("Nunito", size: 16))
+                    .fontWeight(.medium)
+                },
+                background: Color(red: 0.25, green: 0.17, blue: 0),
+                foreground: .white,
+                borderColor: .clear,
+                cornerRadius: 8,
+                horizontalPadding: 24,
+                verticalPadding: 12,
+                showOverlayStroke: true
+              )
+              DayflowSurfaceButton(
+                action: quitAndReopen,
+                content: {
+                  Text("Quit & Reopen")
+                    .font(.custom("Nunito", size: 16))
+                    .fontWeight(.medium)
+                },
+                background: .white,
+                foreground: Color(red: 0.25, green: 0.17, blue: 0),
+                borderColor: .clear,
+                cornerRadius: 8,
+                horizontalPadding: 24,
+                verticalPadding: 12,
+                showOverlayStroke: true
+              )
+            }
+          case .granted:
+            EmptyView()
+          }
+        }
+        .padding(.top, 16)
+
+        // Navigation buttons
+        HStack(spacing: 16) {
+          DayflowSurfaceButton(
+            action: onBack,
+            content: { Text("Back").font(.custom("Nunito", size: 14)).fontWeight(.semibold) },
+            background: .white,
+            foreground: Color(red: 0.25, green: 0.17, blue: 0),
+            borderColor: .clear,
+            cornerRadius: 8,
+            horizontalPadding: 20,
+            verticalPadding: 12,
+            minWidth: 120,
+            isSecondaryStyle: true
+          )
+          DayflowSurfaceButton(
+            action: {
+              if permissionState == .granted {
+                onNext()
+              }
+            },
+            content: { Text("Next").font(.custom("Nunito", size: 14)).fontWeight(.semibold) },
+            background: permissionState == .granted
+              ? Color(red: 0.25, green: 0.17, blue: 0)
+              : Color(red: 0.25, green: 0.17, blue: 0).opacity(0.3),
+            foreground: permissionState == .granted ? .white : .white.opacity(0.5),
+            borderColor: .clear,
+            cornerRadius: 8,
+            horizontalPadding: 20,
+            verticalPadding: 12,
+            minWidth: 120,
+            showOverlayStroke: permissionState == .granted
+          )
+          .disabled(permissionState != .granted)
+        }
+        .padding(.top, 20)
+
+        Spacer()
+      }
+      .frame(maxWidth: 400)
+
+      // Right side - image
+      if let image = NSImage(named: "ScreenRecordingPermissions") {
+        Image(nsImage: image)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .frame(maxWidth: 500)
+          .cornerRadius(12)
+          .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .onPreferenceChange(LeftColumnSizeKey.self) { leftColumnSize = $0 }
     }
+    .padding(60)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .onAppear {
       // If already granted, mark as granted; otherwise start in notRequested
       if CGPreflightScreenCaptureAccess() {

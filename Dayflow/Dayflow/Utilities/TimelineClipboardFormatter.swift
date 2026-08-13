@@ -6,52 +6,64 @@ import Foundation
 struct TimelineClipboardFormatter {
   static func makeClipboardText(for date: Date, cards: [TimelineCard], now: Date = Date()) -> String
   {
+    let calendar = Calendar.current
     let timelineDate = timelineDisplayDate(from: date, now: now)
-    let header = exportHeader(formattedTimelineDay(timelineDate, now: now))
+    let timelineToday = timelineDisplayDate(from: now, now: now)
+
+    let dateFormatter = DateFormatter()
+    if calendar.isDate(timelineDate, inSameDayAs: timelineToday) {
+      dateFormatter.dateFormat = "'Today,' MMM d"
+    } else {
+      dateFormatter.dateFormat = "EEEE, MMM d"
+    }
+    let header = "Dayflow timeline · \(dateFormatter.string(from: timelineDate))"
 
     guard !cards.isEmpty else {
       return [header, String(localized: "No timeline activities were recorded for this day.")]
         .joined(separator: "\n\n")
     }
 
-    let entries = cards.enumerated().map { index, card in
-      textEntry(for: card, index: index)
+    let entries = cards.enumerated().map { index, card -> String in
+      var lines: [String] = []
+
+      let timeRange = formattedRange(start: card.startTimestamp, end: card.endTimestamp)
+      let titleText = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
+      let bullet = "\(index + 1). \(timeRange.isEmpty ? "" : "\(timeRange) — ")\(titleText)"
+      lines.append(bullet.trimmingCharacters(in: .whitespaces))
+
+      let metaParts = metadataParts(for: card)
+      if !metaParts.isEmpty {
+        lines.append("   " + metaParts.joined(separator: " • "))
+      }
+
+      if let summary = cleanedParagraph(card.summary) {
+        lines.append(block(label: "Summary", text: summary))
+      }
+
+      if let details = cleanedParagraph(card.detailedSummary),
+        details != cleanedParagraph(card.summary)
+      {
+        lines.append(block(label: "Details", text: details))
+      }
+
+      return lines.joined(separator: "\n")
     }
 
     return ([header, ""] + entries).joined(separator: "\n\n")
   }
 
-  static func makeClipboardText(
-    for weekRange: TimelineWeekRange,
-    cards: [TimelineCard],
-    now: Date = Date()
-  ) -> String {
-    let header = exportHeader(weekRange.title)
-
-    guard !cards.isEmpty else {
-      return [header, String(localized: "No timeline activities were recorded for this week.")]
-        .joined(separator: "\n\n")
-    }
-
-    let cardsByDay = Dictionary(grouping: cards, by: \.day)
-    let sections = weekRange.days.compactMap { day -> String? in
-      guard let dayCards = cardsByDay[day.dayString], !dayCards.isEmpty else { return nil }
-
-      let sortedCards = dayCards.sorted(by: cardSort)
-      let heading = formattedTimelineDay(day.date, now: now)
-      let entries = sortedCards.enumerated().map { index, card in
-        textEntry(for: card, index: index)
-      }
-
-      return ([heading, ""] + entries).joined(separator: "\n\n")
-    }
-
-    return ([header, ""] + sections).joined(separator: "\n\n")
-  }
-
   static func makeMarkdown(for date: Date, cards: [TimelineCard], now: Date = Date()) -> String {
+    let calendar = Calendar.current
     let timelineDate = timelineDisplayDate(from: date, now: now)
-    let header = "## " + exportHeader(formattedTimelineDay(timelineDate, now: now))
+    let timelineToday = timelineDisplayDate(from: now, now: now)
+
+    let dateFormatter = DateFormatter()
+    if calendar.isDate(timelineDate, inSameDayAs: timelineToday) {
+      dateFormatter.dateFormat = "'Today,' MMM d"
+    } else {
+      dateFormatter.dateFormat = "EEEE, MMM d"
+    }
+    let header = "## Dayflow timeline · \(dateFormatter.string(from: timelineDate))"
 
     guard !cards.isEmpty else {
       let emptyMessage = String(localized: "No timeline activities were recorded for this day.")
@@ -160,91 +172,4 @@ struct TimelineClipboardFormatter {
       .map { $0.trimmingCharacters(in: .whitespaces) }
       .filter { !$0.isEmpty }
   }
-
-  /// Abbreviated month and day, e.g. "Sep 11" / "11. Sept." / "9月11日".
-  private static let todayDayFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.setLocalizedDateFormatFromTemplate("MMMd")
-    return formatter
-  }()
-
-  /// Full weekday plus abbreviated month and day, e.g. "Thursday, Sep 11".
-  private static let otherDayFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.setLocalizedDateFormatFromTemplate("EEEEMMMd")
-    return formatter
-  }()
-
-  private static func formattedTimelineDay(_ date: Date, now: Date) -> String {
-    let calendar = Calendar.current
-    let timelineToday = timelineDisplayDate(from: now, now: now)
-
-    if calendar.isDate(date, inSameDayAs: timelineToday) {
-      return String(localized: "Today, \(todayDayFormatter.string(from: date))")
-    }
-    return otherDayFormatter.string(from: date)
-  }
-
-  private static func textEntry(for card: TimelineCard, index: Int) -> String {
-    var lines: [String] = []
-
-    let timeRange = formattedRange(start: card.startTimestamp, end: card.endTimestamp)
-    let titleText = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
-    let bullet = "\(index + 1). \(timeRange.isEmpty ? "" : "\(timeRange) — ")\(titleText)"
-    lines.append(bullet.trimmingCharacters(in: .whitespaces))
-
-    let metaParts = metadataParts(for: card)
-    if !metaParts.isEmpty {
-      lines.append("   " + metaParts.joined(separator: " • "))
-    }
-
-    if let summary = cleanedParagraph(card.summary) {
-      lines.append(block(label: String(localized: "Summary"), text: summary))
-    }
-
-    if let details = cleanedParagraph(card.detailedSummary),
-      details != cleanedParagraph(card.summary)
-    {
-      lines.append(block(label: String(localized: "Details"), text: details))
-    }
-
-    return lines.joined(separator: "\n")
-  }
-
-  private static func cardSort(lhs: TimelineCard, rhs: TimelineCard) -> Bool {
-    if lhs.day != rhs.day {
-      return lhs.day < rhs.day
-    }
-    if let leftDate = sortDate(for: lhs), let rightDate = sortDate(for: rhs), leftDate != rightDate
-    {
-      return leftDate < rightDate
-    }
-    return lhs.title < rhs.title
-  }
-
-  private static func sortDate(for card: TimelineCard) -> Date? {
-    guard
-      let dayDate = DateFormatter.yyyyMMdd.date(from: card.day),
-      let parsedStart = timeFormatter.date(from: card.startTimestamp)
-    else {
-      return nil
-    }
-
-    let calendar = Calendar.current
-    let components = calendar.dateComponents([.hour, .minute], from: parsedStart)
-    return calendar.date(
-      bySettingHour: components.hour ?? 0,
-      minute: components.minute ?? 0,
-      second: 0,
-      of: dayDate
-    )
-  }
-
-  /// Parser for the stored English "h:mm a" card times. Not a display formatter.
-  private static let timeFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "h:mm a"
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    return formatter
-  }()
 }

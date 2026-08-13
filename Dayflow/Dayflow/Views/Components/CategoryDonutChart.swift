@@ -11,29 +11,23 @@ import SwiftUI
 // MARK: - Data Model
 
 struct CategoryTimeData: Identifiable {
-  let id: String
+  let id: UUID
   let name: String
   let colorHex: String
   let duration: TimeInterval  // in seconds
 
-  init(id: String? = nil, name: String, colorHex: String, duration: TimeInterval) {
-    self.id = id ?? Self.stableFallbackID(name: name, colorHex: colorHex)
+  init(id: UUID = UUID(), name: String, colorHex: String, duration: TimeInterval) {
+    self.id = id
     self.name = name
     self.colorHex = colorHex
     self.duration = duration
   }
 
   init(category: TimelineCategory, duration: TimeInterval) {
-    self.id = category.id.uuidString
+    self.id = category.id
     self.name = category.name
     self.colorHex = category.colorHex
     self.duration = duration
-  }
-
-  private static func stableFallbackID(name: String, colorHex: String) -> String {
-    let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    let normalizedColor = colorHex.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    return "\(normalizedName)|\(normalizedColor)"
   }
 
   var color: Color {
@@ -187,8 +181,8 @@ struct CategoryDonutChart: View {
   private var centerContent: some View {
     VStack(spacing: 4) {
       Text("TOTAL")
-        .font(.custom("Figtree", size: 12).weight(.bold))
-        .foregroundColor(Color(hex: "B1B1B1"))
+        .font(.custom("Nunito", size: 8).weight(.bold))
+        .foregroundColor(Color(red: 0.65, green: 0.65, blue: 0.65))  // #a5a5a5
 
       VStack(spacing: 0) {
         let total = formattedTotal
@@ -229,8 +223,8 @@ struct CategoryDonutChart: View {
 
         // Category name
         Text(item.name)
-          .font(.custom("Figtree", size: 10))
-          .foregroundColor(theme.textSecondary)
+          .font(.custom("NunitoSans-Regular", size: 10))
+          .foregroundColor(Color(red: 0.39, green: 0.39, blue: 0.39))  // #636363
           .lineLimit(1)
           .truncationMode(.tail)
           .frame(width: 70, alignment: .leading)
@@ -238,8 +232,8 @@ struct CategoryDonutChart: View {
 
       // Duration
       Text(item.formattedDuration)
-        .font(.custom("Figtree", size: 12).weight(.semibold))
-        .foregroundColor(theme.textPrimary)
+        .font(.custom("NunitoSans-SemiBold", size: 12))
+        .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))  // #333333
         .padding(.leading, 14)  // Align with text above
     }
     .frame(width: 84.667, alignment: .leading)

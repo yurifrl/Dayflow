@@ -19,10 +19,8 @@ private enum SidebarMetrics {
 enum SidebarIcon: CaseIterable {
   case timeline
   case daily
-  case weekly
   case chat
-  case flow
-  case agents
+  case journal
   case bug
   case settings
 
@@ -30,10 +28,8 @@ enum SidebarIcon: CaseIterable {
     switch self {
     case .timeline: return "TimelineIcon"
     case .daily: return "DailyIcon"
-    case .weekly: return "WeeklyIcon"
     case .chat: return "ChatIcon"
-    case .flow: return "FlowIcon"
-    case .agents: return "AgentsIcon"
+    case .journal: return "JournalIcon"
     case .bug: return nil
     case .settings: return nil
     }
@@ -41,43 +37,20 @@ enum SidebarIcon: CaseIterable {
 
   var systemNameFallback: String? {
     switch self {
-    case .flow: return "water.waves"
-    case .agents: return "sparkles"
-    case .bug: return "exclamationmark.bubble.fill"
-    case .settings: return "gearshape.fill"
+    case .bug: return "exclamationmark.bubble"
+    case .settings: return "gearshape"
     default: return nil
     }
   }
 
   var displayName: String {
     switch self {
-    case .timeline: return String(localized: "Timeline")
-    case .daily:
-      return String(
-        localized: "sidebar.daily", defaultValue: "Daily",
-        comment: "Short sidebar label for the daily recap view.")
-    case .weekly:
-      return String(
-        localized: "sidebar.weekly", defaultValue: "Weekly",
-        comment: "Short sidebar label for the weekly recap view.")
-    case .chat: return String(localized: "Chat")
-    case .flow: return String(localized: "Flow")
-    case .agents: return String(localized: "Agents")
-    case .bug: return String(localized: "Support")
-    case .settings: return String(localized: "Settings")
-    }
-  }
-
-  var analyticsTabName: String {
-    switch self {
-    case .timeline: return "timeline"
-    case .daily: return "daily"
-    case .weekly: return "weekly"
-    case .chat: return "dashboard"
-    case .flow: return "flow"
-    case .agents: return "agents"
-    case .bug: return "bug_report"
-    case .settings: return "settings"
+    case .timeline: return "Timeline"
+    case .daily: return "Daily"
+    case .chat: return "Chat"
+    case .journal: return "Journal"
+    case .bug: return "Report"
+    case .settings: return "Settings"
     }
   }
 }
@@ -92,22 +65,11 @@ struct SidebarView: View {
         SidebarIconButton(
           icon: icon,
           isSelected: selectedIcon == icon,
-          showBadge: shouldShowBadge(for: icon),
+          showBadge: icon == .journal && badgeManager.hasPendingReminder,
           action: { selectedIcon = icon }
         )
         .frame(width: SidebarMetrics.itemSize, height: SidebarMetrics.itemSize)
       }
-    }
-  }
-
-  private func shouldShowBadge(for icon: SidebarIcon) -> Bool {
-    switch icon {
-    case .bug:
-      return badgeManager.supportUnreadCount > 0
-    case .daily:
-      return badgeManager.hasPendingDailyRecap
-    default:
-      return false
     }
   }
 }
@@ -134,7 +96,7 @@ struct SidebarIconButton: View {
         iconBox
 
         Text(icon.displayName)
-          .font(.custom("Figtree", size: SidebarMetrics.labelFontSize))
+          .font(.custom("Nunito", size: SidebarMetrics.labelFontSize))
           .lineLimit(1)
           .minimumScaleFactor(0.75)
           .foregroundColor(labelColor)
@@ -142,7 +104,7 @@ struct SidebarIconButton: View {
       .frame(width: SidebarMetrics.itemSize, height: SidebarMetrics.itemSize)
       .contentShape(Rectangle())
     }
-    .buttonStyle(DayflowPressScaleButtonStyle())
+    .buttonStyle(PlainButtonStyle())
     .contentShape(Rectangle())
     .hoverScaleEffect(scale: 1.02)
     .pointingHandCursor()

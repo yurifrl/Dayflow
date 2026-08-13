@@ -82,7 +82,7 @@ struct HowItWorksView: View {
       HStack {
         DayflowSurfaceButton(
           action: onBack,
-          content: { Text("Back").font(.custom("Figtree", size: 14)).fontWeight(.semibold) },
+          content: { Text("Back").font(.custom("Nunito", size: 14)).fontWeight(.semibold) },
           background: .white,
           foreground: Color(red: 0.25, green: 0.17, blue: 0),
           borderColor: Color(hex: "B6B6B6"),
@@ -111,7 +111,7 @@ struct HowItWorksView: View {
               Image("GithubIcon").resizable().aspectRatio(contentMode: .fit).frame(
                 width: 20, height: 20
               ).colorInvert()
-              Text("Star Dayflow on GitHub").font(.custom("Figtree", size: 14)).fontWeight(.medium)
+              Text("Star Dayflow on GitHub").font(.custom("Nunito", size: 14)).fontWeight(.medium)
             }
           },
           background: Color(hex: "FF9F6F"),
@@ -128,14 +128,8 @@ struct HowItWorksView: View {
 
         DayflowSurfaceButton(
           action: onNext,
-          content: {
-            HStack(spacing: 6) {
-              Text("Next").font(.custom("Figtree", size: 14)).fontWeight(.semibold)
-              Image(systemName: "chevron.right").font(.system(size: 12, weight: .medium))
-            }
-            .padding(.leading, 4)
-          },
-          background: Color(hex: "FF9F6F"),
+          content: { Text("Next").font(.custom("Nunito", size: 14)).fontWeight(.semibold) },
+          background: Color(red: 0.25, green: 0.17, blue: 0),
           foreground: .white,
           borderColor: Color(hex: "F4C8B1"),
           cornerRadius: 200,

@@ -56,7 +56,7 @@ struct DayflowButton: View {
       }
     }) {
       Text(title)
-        .font(.custom("Figtree", size: fontSize))
+        .font(.custom("Nunito", size: fontSize))
         .fontWeight(.semibold)
         .foregroundColor(isSubtle ? .black.opacity(0.7) : .white)
         .frame(width: width, height: 56, alignment: .center)
@@ -115,15 +115,14 @@ struct DayflowButton: View {
               lineWidth: 1.5
             )
         )
-        .dayflowPressScale(
-          isPressed,
-          enabled: !reduceMotion,
-          pressedScale: 0.97,
-          animation: pressAnimation
+        // Combined transformations with proper priority
+        .scaleEffect(
+          reduceMotion ? 1.0 : (isPressed ? 0.97 : (isHovered ? 1.02 : 1.0))
         )
-        .scaleEffect(reduceMotion ? 1.0 : (isHovered ? 1.02 : 1.0))
         .offset(y: reduceMotion ? 0 : (isHovered ? (isSubtle ? -1 : -2) : 0))
-        .brightness(isHovered ? (isSubtle ? 0.05 : 0.08) : 0)
+        .brightness(
+          isPressed ? -0.1 : (isHovered ? (isSubtle ? 0.05 : 0.08) : 0)
+        )
     }
     .buttonStyle(.plain)  // Remove default button styling
     .pointingHandCursor()

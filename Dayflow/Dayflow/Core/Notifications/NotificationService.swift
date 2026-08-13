@@ -10,12 +10,6 @@ import AppKit
 import Foundation
 @preconcurrency import UserNotifications
 
-enum WeeklyUnlockNotificationScheduleResult {
-  case scheduled
-  case denied
-  case failed
-}
-
 @MainActor
 final class NotificationService: NSObject, ObservableObject {
   static let shared = NotificationService()
@@ -85,21 +79,10 @@ final class NotificationService: NSObject, ObservableObject {
     }
   }
 
-  /// Read the current notification authorization status and refresh the cached flag.
-  func authorizationStatus() async -> UNAuthorizationStatus {
-    let settings = await center.notificationSettings()
-    let authorizationStatus = settings.authorizationStatus
-    await MainActor.run {
-      self.permissionGranted = Self.canScheduleNotifications(for: authorizationStatus)
-    }
-    return authorizationStatus
-  }
-
-  /// Remove reminders left by the retired Journal feature without touching Daily or Weekly.
-  private func retireJournalNotifications() async {
-    let pending = await center.pendingNotificationRequests()
-    let pendingIDs = pending.filter { $0.identifier.hasPrefix("journal.") }.map(\.identifier)
-    center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
+  /// Schedule all reminders based on current preferences
+  func scheduleReminders() {
+    // First, cancel all existing journal reminders
+    cancelAllReminders()
 
     let delivered = await center.deliveredNotifications()
     let deliveredIDs = delivered.map(\.request.identifier).filter { $0.hasPrefix("journal.") }
@@ -161,33 +144,6 @@ final class NotificationService: NSObject, ObservableObject {
     }
   }
 
-  func scheduleWeeklyUnlockNotification(at unlockDate: Date) async
-    -> WeeklyUnlockNotificationScheduleResult
-  {
-    var settings = await center.notificationSettings()
-    var status = settings.authorizationStatus
-
-    if status == .notDetermined {
-      _ = await requestPermission()
-      settings = await center.notificationSettings()
-      status = settings.authorizationStatus
-    }
-
-    guard Self.canScheduleNotifications(for: status) else {
-      print(
-        "[NotificationService] Skipping weekly unlock notification: "
-          + "permission_status=\(Self.authorizationStatusName(status))"
-      )
-      return .denied
-    }
-
-    return await enqueueWeeklyUnlockNotification(at: unlockDate, settings: settings)
-  }
-
-  func cancelWeeklyUnlockNotification() {
-    center.removePendingNotificationRequests(withIdentifiers: ["weekly.unlock"])
-  }
-
   // MARK: - Private Methods
 
   private func checkPermissionStatus() async {
@@ -245,10 +201,6 @@ final class NotificationService: NSObject, ObservableObject {
           + "identifier=\(identifier) day=\(day)"
       )
 
-      Task { @MainActor in
-        NotificationBadgeManager.shared.registerDailyRecapReady(forDay: day)
-      }
-
       AnalyticsService.shared.capture(
         "daily_auto_generation_notification_scheduled",
         [
@@ -257,46 +209,6 @@ final class NotificationService: NSObject, ObservableObject {
           "alert_setting": alertSetting,
           "sound_setting": soundSetting,
         ])
-    }
-  }
-
-  private func enqueueWeeklyUnlockNotification(
-    at unlockDate: Date,
-    settings: UNNotificationSettings
-  ) async -> WeeklyUnlockNotificationScheduleResult {
-    let identifier = "weekly.unlock"
-    let interval = max(1, unlockDate.timeIntervalSinceNow)
-
-    center.removePendingNotificationRequests(withIdentifiers: [identifier])
-
-    let content = UNMutableNotificationContent()
-    content.title = String(localized: "Weekly view is ready")
-    content.body = String(localized: "Tap to open your weekly review.")
-    content.sound = .default
-    content.categoryIdentifier = "weekly_unlock"
-
-    let request = UNNotificationRequest(
-      identifier: identifier,
-      content: content,
-      trigger: UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
-    )
-
-    return await withCheckedContinuation { continuation in
-      center.add(request) { error in
-        if let error {
-          print("[NotificationService] Failed to schedule weekly unlock notification: \(error)")
-          continuation.resume(returning: .failed)
-          return
-        }
-
-        print(
-          "[NotificationService] Scheduled weekly unlock notification "
-            + "identifier=\(identifier) seconds=\(Int(interval.rounded())) "
-            + "alert_setting=\(Self.notificationSettingName(settings.alertSetting)) "
-            + "sound_setting=\(Self.notificationSettingName(settings.soundSetting))"
-        )
-        continuation.resume(returning: .scheduled)
-      }
     }
   }
 
@@ -338,14 +250,12 @@ final class NotificationService: NSObject, ObservableObject {
   }
 
   private func activateAppForNotificationTap() {
+    NSApp.activate(ignoringOtherApps: true)
     let showDockIcon = UserDefaults.standard.object(forKey: "showDockIcon") as? Bool ?? true
     if showDockIcon && NSApp.activationPolicy() == .accessory {
       NSApp.setActivationPolicy(.regular)
     }
-
-    NSApp.unhide(nil)
-    MainWindowController.shared.showMainWindow()
-    NSApp.activate(ignoringOtherApps: true)
+    NSApp.windows.first?.makeKeyAndOrderFront(nil)
   }
 }
 
@@ -366,22 +276,30 @@ extension NotificationService: UNUserNotificationCenterDelegate {
     )
 
     let isDailyRecapNotification = identifier.hasPrefix("daily.")
-    let isWeeklyUnlockNotification = identifier.hasPrefix("weekly.")
 
-    let isSupportNotification = identifier.hasPrefix("support.")
-    guard isDailyRecapNotification || isWeeklyUnlockNotification || isSupportNotification else {
+    guard isJournalNotification || isDailyRecapNotification else {
       completionHandler()
       return
     }
 
     Task { @MainActor in
-      if isSupportNotification {
-        AppDelegate.pendingNotificationNavigationDestination = .support
+      if isJournalNotification {
+        NotificationBadgeManager.shared.showBadge()
+        NotificationCenter.default.post(name: .navigateToJournal, object: nil)
+        AppDelegate.pendingNavigationToJournal = true
         activateAppForNotificationTap()
-      } else if isDailyRecapNotification {
-        AppDelegate.pendingNotificationNavigationDestination = .daily(day: day)
+        print(
+          "[NotificationService] didReceive journal notification handled identifier=\(identifier)")
+      } else {
+        AppDelegate.pendingNavigationToDailyDay = day
+        AppDelegate.pendingNavigationToJournal = false
 
         if let day, !day.isEmpty {
+          NotificationCenter.default.post(
+            name: .navigateToDaily,
+            object: nil,
+            userInfo: ["day": day]
+          )
           AnalyticsService.shared.capture(
             "daily_auto_generation_notification_clicked",
             [
@@ -389,6 +307,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             ])
           print("[NotificationService] didReceive daily notification navigation target_day=\(day)")
         } else {
+          NotificationCenter.default.post(name: .navigateToDaily, object: nil)
           AnalyticsService.shared.capture(
             "daily_auto_generation_notification_clicked",
             [
@@ -398,13 +317,6 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         }
 
         activateAppForNotificationTap()
-      } else {
-        AppDelegate.pendingNotificationNavigationDestination = .weekly
-        activateAppForNotificationTap()
-        print(
-          "[NotificationService] didReceive weekly unlock notification handled "
-            + "identifier=\(identifier)"
-        )
       }
     }
 
@@ -421,19 +333,18 @@ extension NotificationService: UNUserNotificationCenterDelegate {
     let day = notification.request.content.userInfo["day"] as? String
     print("[NotificationService] willPresent identifier=\(identifier) day=\(day ?? "nil")")
 
-    if identifier.hasPrefix("daily.") {
-      print("[NotificationService] willPresent options=banner,sound identifier=\(identifier)")
-      completionHandler([.banner, .sound])
+    if identifier.hasPrefix("journal.") {
+      Task { @MainActor in
+        print("[NotificationService] willPresent: showing badge")
+        NotificationBadgeManager.shared.showBadge()
+      }
+
+      print("[NotificationService] willPresent options=banner,sound,badge identifier=\(identifier)")
+      completionHandler([.banner, .sound, .badge])
       return
     }
 
     if identifier.hasPrefix("support.") {
-      completionHandler([.banner, .sound])
-      return
-    }
-
-    if identifier.hasPrefix("weekly.") {
-      print("[NotificationService] willPresent options=banner,sound identifier=\(identifier)")
       completionHandler([.banner, .sound])
       return
     }

@@ -87,11 +87,19 @@ struct SetupSidebarItem: View {
             .opacity(0.5)
             .padding(.leading, 38)
         }
+        .frame(width: 20, height: 20)  // Fixed frame for consistent centering
+
+        Text(title)
+          .font(.custom("Nunito", size: 15))
+          .fontWeight(isSelected ? .semibold : .medium)
+          .foregroundColor(textColor)
+
+        Spacer()  // Push content to fill the button area
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .contentShape(Rectangle())
     }
-    .buttonStyle(DayflowPressScaleButtonStyle(pressedScale: 0.97))
+    .buttonStyle(.plain)
     .pointingHandCursor()
     .scaleEffect(isHovered && !isSelected ? 1.02 : 1.0)
     .animation(.spring(response: 0.3, dampingFraction: 0.9), value: isSelected)

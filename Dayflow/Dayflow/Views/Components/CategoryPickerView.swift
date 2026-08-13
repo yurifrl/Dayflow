@@ -48,23 +48,21 @@ struct CategoryPickerView: View {
               Text(
                 "To help Dayflow organize your activities more accurately, try adding more details to the descriptions in your categories "
               )
-              .font(Font.custom("Figtree", size: 10).weight(.medium))
-              .foregroundColor(helperTextColor)
+              .font(Font.custom("Nunito", size: 10).weight(.medium))
+              .foregroundColor(Color(red: 0.39, green: 0.35, blue: 0.33))  // #635953
 
               Button(action: onNavigateToEditor) {
                 Text("here")
-                  .font(Font.custom("Figtree", size: 10).weight(.medium))
-                  .foregroundColor(
-                    theme.isDark ? theme.accentText : Color(red: 1.0, green: 0.4, blue: 0.0)
-                  )
+                  .font(Font.custom("Nunito", size: 10).weight(.medium))
+                  .foregroundColor(Color(red: 1.0, green: 0.4, blue: 0.0))  // #ff6600
                   .underline()
               }
               .buttonStyle(.plain)
               .pointingHandCursor()
 
               Text(".")
-                .font(Font.custom("Figtree", size: 10).weight(.medium))
-                .foregroundColor(helperTextColor)
+                .font(Font.custom("Nunito", size: 10).weight(.medium))
+                .foregroundColor(Color(red: 0.39, green: 0.35, blue: 0.33))
             }
             .padding(.leading, 2.188)
 
@@ -197,8 +195,8 @@ struct CategoryPill: View {
 
         // Category name - no line limit, text can wrap if needed
         Text(category.name)
-          .font(Font.custom("Figtree", size: 10).weight(.medium))
-          .foregroundColor(isSelected ? theme.controlText : theme.chipText)
+          .font(Font.custom("Nunito", size: 10).weight(.medium))
+          .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
           .fixedSize(horizontal: false, vertical: true)
           .lineLimit(nil)
       }
