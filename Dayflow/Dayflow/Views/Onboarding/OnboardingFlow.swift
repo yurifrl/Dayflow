@@ -123,25 +123,6 @@ struct OnboardingFlow: View {
           AnalyticsService.shared.screen("onboarding_screen_recording")
         }
 
-      case .personalGoal:
-        OnboardingPersonalGoalStep(
-          onContinue: { goal in
-            let trimmedGoal = String(goal.prefix(OnboardingPersonalGoalStep.maxCharacters))
-            let payload: [String: Any] = [
-              "goal": trimmedGoal,
-              "character_count": trimmedGoal.count,
-              "skipped": trimmedGoal.isEmpty,
-              "surface": "onboarding_personal_goal",
-            ]
-            AnalyticsService.shared.capture("onboarding_personal_goal", payload)
-            advance(extraProps: ["skipped": trimmedGoal.isEmpty])
-          }
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-          AnalyticsService.shared.screen("onboarding_personal_goal")
-        }
-
       case .completion:
         CompletionView(
           onFinish: {
@@ -163,7 +144,10 @@ struct OnboardingFlow: View {
     }
     .background {
       // Background at parent level - fills entire window!
-      OnboardingBackdrop()
+      Image("OnboardingBackgroundv2")
+        .resizable()
+        .aspectRatio(contentMode: .fill)
+        .ignoresSafeArea()
     }
     .preferredColorScheme(.light)
   }
@@ -298,22 +282,17 @@ struct WelcomeView: View {
   @Binding var timelineOffset: CGFloat
   let onStart: () -> Void
 
-  // The splash artwork is authored at 1200×680. The flower button baked into
-  // the art sits at this center; the hit target scales with the artwork.
-  private let artworkSize = CGSize(width: 1200, height: 680)
-  private let startButtonCenter = CGPoint(x: 600, y: 243)
-  private let startButtonDiameter: CGFloat = 133
-
-  @State private var isHoveringStart = false
-
   var body: some View {
-    GeometryReader { proxy in
-      let scale = max(
-        proxy.size.width / artworkSize.width,
-        proxy.size.height / artworkSize.height
-      )
-      let originX = (proxy.size.width - artworkSize.width * scale) / 2
-      let originY = (proxy.size.height - artworkSize.height * scale) / 2
+    ZStack {
+      // Text and button container
+      VStack {
+        VStack(spacing: 20) {
+          Image("DayflowLogoMainApp")
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .frame(height: 64)
+            .opacity(textOpacity)
 
           Text(fullText)
             .font(.custom("InstrumentSerif-Regular", size: 36))
@@ -356,8 +335,20 @@ struct WelcomeView: View {
         Spacer()
         Image("OnboardingTimeline")
           .resizable()
-          .frame(width: artworkSize.width * scale, height: artworkSize.height * scale)
-          .offset(x: originX, y: originY)
+          .aspectRatio(contentMode: .fit)
+          .frame(maxWidth: 800)
+          .offset(y: timelineOffset)
+          .opacity(timelineOffset > 0 ? 0 : 1)
+          .onAppear {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0).delay(0.3))
+            {
+              timelineOffset = 0
+            }
+          }
+      }
+    }
+  }
+}
 
 struct OnboardingCategorySetupView: View {
   let onNext: () -> Void
@@ -442,13 +433,12 @@ struct CompletionView: View {
           ? Color(red: 0.25, green: 0.17, blue: 0)
           : Color(red: 0.88, green: 0.84, blue: 0.78),
         foreground: .white,
-        borderColor: Color(hex: "F4C8B1"),
-        cornerRadius: 200,
+        borderColor: .clear,
+        cornerRadius: 8,
         horizontalPadding: 40,
         verticalPadding: 14,
         minWidth: 200,
-        showOverlayStroke: false,
-        innerGlowColor: Color(hex: "FFDCCB").opacity(0.9)
+        showOverlayStroke: true
       )
       .disabled(!canProceed)
       .padding(.top, 16)
