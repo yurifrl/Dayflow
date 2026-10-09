@@ -38,39 +38,44 @@ struct SettingsObsidianTabView: View {
     private var vaultFolderCard: some View {
         settingsCard {
             VStack(alignment: .leading, spacing: 14) {
-                cardHeader(icon: "folder", title: "Vault Folder")
+                cardHeader(icon: "folder", title: "Vault Folders")
 
-                Text("Choose the Obsidian vault folder where exports are saved.")
+                Text("Add each Obsidian vault folder. Exports are saved to every selected folder.")
                     .font(.custom("Nunito", size: 13))
                     .foregroundColor(.black.opacity(0.5))
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "folder.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(obsidianStore.settings.directoryPath.isEmpty
-                                ? .black.opacity(0.25)
-                                : Color(red: 0.45, green: 0.26, blue: 0.04))
+                VStack(spacing: 8) {
+                    ForEach(obsidianStore.settings.directoryPaths, id: \.self) { path in
+                        HStack(spacing: 8) {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color(red: 0.45, green: 0.26, blue: 0.04))
 
-                        if obsidianStore.settings.directoryPath.isEmpty {
-                            Text("No folder selected")
-                                .font(.custom("Nunito", size: 13))
-                                .foregroundColor(.black.opacity(0.35))
-                        } else {
-                            Text(abbreviatedPath(obsidianStore.settings.directoryPath))
+                            Text(abbreviatedPath(path))
                                 .font(.custom("Nunito", size: 13))
                                 .foregroundColor(.black.opacity(0.7))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(fieldBackground)
 
-                    plainButton("Choose…") { chooseFolder() }
+                            Spacer(minLength: 8)
+
+                            Button(action: { removeFolder(at: path) }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.black.opacity(0.45))
+                                    .frame(width: 24, height: 24)
+                            }
+                            .buttonStyle(.plain)
+                            .pointingHandCursor()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(fieldBackground)
+                    }
+
+                    plainButton("Add Folder…") { chooseFolder() }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -134,12 +139,12 @@ struct SettingsObsidianTabView: View {
 
                 // File preview
                 if !obsidianStore.settings.directoryPath.isEmpty {
-                    let fileName = exportFileName(from: exportStartDate, to: exportEndDate)
+                    let relativePath = exportRelativePath(from: exportStartDate, to: exportEndDate)
                     HStack(spacing: 6) {
                         Image(systemName: "doc.text")
                             .font(.system(size: 11))
                             .foregroundColor(.black.opacity(0.35))
-                        Text(fileName)
+                        Text(relativePath)
                             .font(.custom("Nunito", size: 12))
                             .foregroundColor(.black.opacity(0.45))
                             .italic()
@@ -275,23 +280,26 @@ struct SettingsObsidianTabView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Select Vault Folder"
-        panel.message = "Choose your Obsidian vault folder for daily note exports."
+        panel.prompt = "Add Vault Folder"
+        panel.message = "Choose an additional Obsidian vault folder for timeline exports."
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        do {
-            let bookmark = try url.bookmarkData(
-                options: .withSecurityScope,
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
-            obsidianStore.settings.directoryBookmark = bookmark
-        } catch {
-            print("Failed to create bookmark: \(error)")
+        let path = url.path
+        if let bookmark = try? url.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) {
+            obsidianStore.settings.directoryBookmarks = (obsidianStore.settings.directoryBookmarks ?? [:])
+                .merging([path: bookmark]) { _, newest in newest }
         }
 
-        obsidianStore.settings.directoryPath = url.path
+        if !obsidianStore.settings.directoryPaths.contains(path) {
+            obsidianStore.settings.directoryPath = (
+                obsidianStore.settings.directoryPaths + [path]
+            ).joined(separator: ", ")
+        }
         obsidianStore.settings.isEnabled = true
     }
 
@@ -301,6 +309,7 @@ struct SettingsObsidianTabView: View {
         rangeExportMessage = nil
         rangeExportError = nil
 
+
         let start = timelineDisplayDate(from: exportStartDate)
         let end = timelineDisplayDate(from: exportEndDate)
 
@@ -309,12 +318,12 @@ struct SettingsObsidianTabView: View {
 
             await MainActor.run {
                 do {
-                    let url = try writeToVault(
+                    let urls = try writeToVault(
                         text: result.text,
                         startDate: start,
                         endDate: end
                     )
-                    rangeExportMessage = "Saved \(result.activityCount) activit\(result.activityCount == 1 ? "y" : "ies") across \(result.dayCount) day\(result.dayCount == 1 ? "" : "s") → \(url.lastPathComponent)"
+                    rangeExportMessage = "Saved \(result.activityCount) activit\(result.activityCount == 1 ? "y" : "ies") across \(result.dayCount) day\(result.dayCount == 1 ? "" : "s") to \(urls.count) vault\(urls.count == 1 ? "" : "s") → \(urls.first?.lastPathComponent ?? "")"
                     rangeExportError = nil
                 } catch {
                     rangeExportMessage = nil
@@ -323,6 +332,13 @@ struct SettingsObsidianTabView: View {
                 isExportingRange = false
             }
         }
+    }
+
+    private func removeFolder(at path: String) {
+        obsidianStore.settings.directoryBookmarks?.removeValue(forKey: path)
+        obsidianStore.settings.directoryPath = obsidianStore.settings.directoryPaths
+            .filter { $0 != path }
+            .joined(separator: ", ")
     }
 
     // MARK: - Export Logic
@@ -360,24 +376,28 @@ struct SettingsObsidianTabView: View {
     }
 
     @MainActor
-    private func writeToVault(text: String, startDate: Date, endDate: Date) throws -> URL {
-        guard let directoryURL = obsidianStore.settings.accessDirectoryURL() else {
+    private func writeToVault(text: String, startDate: Date, endDate: Date) throws -> [URL] {
+        let directoryURLs = obsidianStore.settings.accessDirectoryURLs()
+        guard !directoryURLs.isEmpty else {
             throw NSError(domain: "ObsidianExport", code: -1,
-                          userInfo: [NSLocalizedDescriptionKey: "Could not access vault folder."])
+                          userInfo: [NSLocalizedDescriptionKey: "Could not access vault folders."])
         }
-        defer { ObsidianExportSettings.stopAccessingSecurityScopedResource(for: directoryURL) }
+        defer { ObsidianExportSettings.stopAccessingSecurityScopedResources(for: directoryURLs) }
 
-        let fileName = exportFileName(from: startDate, to: endDate)
-        let fileURL = directoryURL.appendingPathComponent(fileName)
-
-        try text.write(to: fileURL, atomically: true, encoding: .utf8)
-        return fileURL
+        return try ObsidianVaultExportDestination.write(
+            text,
+            to: directoryURLs,
+            startDate: timelineDisplayDate(from: startDate),
+            endDate: timelineDisplayDate(from: endDate)
+        )
     }
 
-    private func exportFileName(from start: Date, to end: Date) -> String {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        return "Dayflow timeline \(fmt.string(from: timelineDisplayDate(from: start))) to \(fmt.string(from: timelineDisplayDate(from: end))).md"
+    private func exportRelativePath(from start: Date, to end: Date) -> String {
+        ObsidianVaultExportDestination(
+            vaultURL: URL(fileURLWithPath: "/", isDirectory: true),
+            startDate: timelineDisplayDate(from: start),
+            endDate: timelineDisplayDate(from: end)
+        ).relativePath
     }
 
     // MARK: - Shared UI Components

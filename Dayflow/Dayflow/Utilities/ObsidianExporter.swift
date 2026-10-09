@@ -109,7 +109,6 @@ struct ObsidianExporter {
         let fileURL = accessibleDirectoryURL
             .appendingPathComponent(fileName(for: date))
             .appendingPathExtension("md")
-
         let existing = (try? String(contentsOf: fileURL, encoding: .utf8))?.replacingOccurrences(of: "\r\n", with: "\n") ?? ""
         let section = buildSection(from: sanitized, title: normalizedSettings.title)
 

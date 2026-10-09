@@ -118,21 +118,23 @@ final class AutoDailyReportService: ObservableObject {
             let markdown = TimelineClipboardFormatter.makeMarkdown(for: normalizedDate, cards: cards)
 
             await MainActor.run {
-                guard let directoryURL = self.obsidianSettingsStore.settings.accessDirectoryURL() else {
-                    print("[AutoExport] Could not access vault folder.")
+                let directoryURLs = self.obsidianSettingsStore.settings.accessDirectoryURLs()
+                guard !directoryURLs.isEmpty else {
+                    print("[AutoExport] Could not access vault folders.")
                     return
                 }
-                defer { ObsidianExportSettings.stopAccessingSecurityScopedResource(for: directoryURL) }
-
-                let fmt = DateFormatter()
-                fmt.dateFormat = "yyyy-MM-dd"
-                let dateStr = fmt.string(from: normalizedDate)
-                let fileName = "Dayflow timeline \(dateStr) to \(dateStr).md"
-                let fileURL = directoryURL.appendingPathComponent(fileName)
+                defer { ObsidianExportSettings.stopAccessingSecurityScopedResources(for: directoryURLs) }
 
                 do {
-                    try markdown.write(to: fileURL, atomically: true, encoding: .utf8)
-                    print("[AutoExport] Saved \(fileURL.lastPathComponent)")
+                    let fileURLs = try ObsidianVaultExportDestination.write(
+                        markdown,
+                        to: directoryURLs,
+                        startDate: normalizedDate,
+                        endDate: normalizedDate
+                    )
+                    for fileURL in fileURLs {
+                        print("[AutoExport] Saved \(fileURL.path)")
+                    }
                 } catch {
                     print("[AutoExport] Failed to write: \(error)")
                 }

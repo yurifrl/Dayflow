@@ -37,6 +37,7 @@ struct ObsidianExportSettings: Codable, Equatable {
     var anchorText: String = ""
     var title: String = ObsidianExportSettings.defaultTitle
     var directoryBookmark: Data?
+    var directoryBookmarks: [String: Data]?
 
     func normalized() -> ObsidianExportSettings {
         var copy = self
@@ -44,33 +45,69 @@ struct ObsidianExportSettings: Codable, Equatable {
             copy.title = ObsidianExportSettings.defaultTitle
         }
         copy.anchorText = copy.anchorText.trimmingCharacters(in: .whitespacesAndNewlines)
-        copy.directoryPath = copy.directoryPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.directoryPath = copy.directoryPaths.joined(separator: ", ")
         return copy
     }
 
+    var directoryPaths: [String] {
+        directoryPath
+            .split(separator: ",")
+            .map { ($0.trimmingCharacters(in: .whitespacesAndNewlines) as NSString).expandingTildeInPath }
+            .filter { !$0.isEmpty }
+    }
+
     var directoryURL: URL? {
-        let trimmed = directoryPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return URL(fileURLWithPath: trimmed, isDirectory: true)
+        directoryPaths.first.map { URL(fileURLWithPath: $0, isDirectory: true) }
+    }
+
+    func accessDirectoryURLs() -> [URL] {
+        var accessibleURLs: [URL] = []
+
+        for path in directoryPaths {
+            let fallbackURL = URL(fileURLWithPath: path, isDirectory: true)
+            guard let bookmark = directoryBookmarks?[path] ?? (path == directoryPaths.first ? directoryBookmark : nil) else {
+                accessibleURLs.append(fallbackURL)
+                continue
+            }
+
+            var isStale = false
+            guard let url = try? URL(
+                resolvingBookmarkData: bookmark,
+                options: .withSecurityScope,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ), !isStale else {
+                accessibleURLs.append(fallbackURL)
+                continue
+            }
+            _ = url.startAccessingSecurityScopedResource()
+            accessibleURLs.append(url)
+        }
+        return accessibleURLs
     }
 
     func accessDirectoryURL() -> URL? {
-        guard let bookmark = directoryBookmark else {
-            return directoryURL
+        guard let path = directoryPaths.first else { return nil }
+        let fallbackURL = URL(fileURLWithPath: path, isDirectory: true)
+        guard let bookmark = directoryBookmarks?[path] ?? directoryBookmark else {
+            return fallbackURL
         }
 
         var isStale = false
-        do {
-            let url = try URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
-            if !isStale {
-                _ = url.startAccessingSecurityScopedResource()
-                return url
-            }
-        } catch {
-            print("Failed to resolve bookmark: \(error)")
+        guard let url = try? URL(
+            resolvingBookmarkData: bookmark,
+            options: .withSecurityScope,
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ), !isStale else {
+            return fallbackURL
         }
+        _ = url.startAccessingSecurityScopedResource()
+        return url
+    }
 
-        return directoryURL
+    static func stopAccessingSecurityScopedResources(for urls: [URL]) {
+        urls.forEach { $0.stopAccessingSecurityScopedResource() }
     }
 
     static func stopAccessingSecurityScopedResource(for url: URL?) {
