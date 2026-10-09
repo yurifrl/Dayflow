@@ -181,7 +181,7 @@ struct ReferralSurveyView: View {
   }
 
   private var detailField: some View {
-    TextField(currentDetailPlaceholder, text: $customReferral)
+    TextField(currentDetailPlaceholder, text: customReferralBinding)
       .textFieldStyle(RoundedBorderTextFieldStyle())
       .font(.custom("Nunito", size: 13))
       .opacity(selectedReferral?.requiresDetail == true ? 1 : 0)

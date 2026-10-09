@@ -14,16 +14,6 @@ import AppKit
 
 // MARK: - Configuration
 
-/// Global screenshot configuration accessible throughout the app
-enum ScreenshotConfig {
-    /// Screenshot interval in seconds. Can be changed via UserDefaults.
-    /// Used by: ScreenRecorder (capture), VideoProcessingService (compression), LLM providers (timestamp expansion)
-    static var interval: TimeInterval {
-        let stored = UserDefaults.standard.double(forKey: "screenshotIntervalSeconds")
-        return stored > 0 ? stored : 10.0  // Default: 10 seconds
-    }
-}
-
 private enum Config {
     static let targetHeight: CGFloat = 1080     // Scale screenshots to ~1080p
     static let jpegQuality: CGFloat = 0.85      // Balance quality vs file size

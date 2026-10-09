@@ -53,6 +53,7 @@ final class CategoryStore: ObservableObject {
   enum StoreKeys {
     static let categories = "colorCategories"
     static let hasUsedApp = "hasUsedApp"
+    static let onboardingSelectedRole = "onboardingSelectedRole"
   }
 
   @Published private(set) var categories: [TimelineCategory] = []

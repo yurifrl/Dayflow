@@ -179,6 +179,43 @@ final class LLMService: LLMServicing {
                 transcribeScreenshots: provider.transcribeScreenshots,
                 generateActivityCards: provider.generateActivityCards
             ), fallbackState: nil)
+        case .local:
+            let endpoint = UserDefaults.standard.string(forKey: "llmLocalBaseURL") ?? "http://localhost:11434"
+            let provider = makeOllamaProvider(endpoint: endpoint)
+            return (actions: BatchProviderActions(
+                transcribeScreenshots: provider.transcribeScreenshots,
+                generateActivityCards: provider.generateActivityCards
+            ), fallbackState: nil)
+        case .chatGPT:
+            let provider = makeChatCLIProvider(preferredToolOverride: .codex)
+            return (actions: BatchProviderActions(
+                transcribeScreenshots: provider.transcribeScreenshots,
+                generateActivityCards: provider.generateActivityCards
+            ), fallbackState: nil)
+        case .claude:
+            let provider = makeChatCLIProvider(preferredToolOverride: .claude)
+            return (actions: BatchProviderActions(
+                transcribeScreenshots: provider.transcribeScreenshots,
+                generateActivityCards: provider.generateActivityCards
+            ), fallbackState: nil)
+        case .openAICompatible:
+            guard let configuration = OpenAICompatiblePreferences.load(), configuration.isComplete else {
+                throw noProviderError()
+            }
+            let apiKey = KeychainManager.shared.retrieve(for: OpenAICompatiblePreferences.keychainProvider)
+            let runtimeConfiguration = OpenAICompatibleRuntimeConfiguration(
+                configuration: configuration,
+                bearerToken: apiKey
+            )
+            let provider = OpenAICompatibleProvider(configuration: runtimeConfiguration)
+            return (actions: BatchProviderActions(
+                transcribeScreenshots: provider.transcribeScreenshots,
+                generateActivityCards: provider.generateActivityCards
+            ), fallbackState: nil)
+        case .dayflow:
+            // The fork keeps a local-only provider stack; legacy dayflow-backend
+            // routing values are recognized but have no provider.
+            throw noProviderError()
         }
     }
 

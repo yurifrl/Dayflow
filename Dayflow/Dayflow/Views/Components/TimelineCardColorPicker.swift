@@ -634,7 +634,6 @@ struct ColorOrganizerRoot: View {
   var completionButtonTitle: String?
   var showsTitles: Bool = true
   @EnvironmentObject private var categoryStore: CategoryStore
-  @Environment(\.dayflowTheme) private var theme
 
   private enum CategorySetupStage {
     case details
@@ -688,22 +687,14 @@ struct ColorOrganizerRoot: View {
       let verticalSpacing = showsTitles ? stackSpacing / 2 : 24
 
       VStack(spacing: verticalSpacing) {
-        if showsTitles {
-          // Rendered in both stages (invisible in part 2) so the modal keeps
-          // the same height when moving between parts.
+        if stage == .details && showsTitles {
           Text("Customize your categories")
-            .font(
-              Font.custom(
-                "Instrument Serif", size: 36)
-            )
-            .foregroundColor(theme.isDark ? .white : .black)
+            .font(Font.custom("Instrument Serif", size: 44))
+            .foregroundColor(.black)
             .frame(maxWidth: .infinity, alignment: .center)
-            .opacity(stage == .details ? 1 : 0)
         }
 
-        // Both stages stay in the tree so the card's height is the larger of
-        // the two and does not change when switching parts.
-        ZStack {
+        if stage == .details {
           HStack(alignment: .top, spacing: columnSpacing) {
             instructionsPanel(isCompact: isCompact, showTitles: showsTitles)
               .frame(minWidth: 200, maxWidth: isCompact ? 240 : 280, alignment: .leading)
@@ -713,9 +704,7 @@ struct ColorOrganizerRoot: View {
               .layoutPriority(0)
           }
           .frame(maxWidth: .infinity, alignment: .leading)
-          .opacity(stage == .details ? 1 : 0)
-          .allowsHitTesting(stage == .details)
-
+        } else {
           HStack(alignment: .top, spacing: columnSpacing) {
             colorPickerPanel(isCompact: isCompact, showTitles: showsTitles)
               .frame(minWidth: 220, maxWidth: isCompact ? 260 : 320, alignment: .leading)
@@ -725,69 +714,20 @@ struct ColorOrganizerRoot: View {
               .layoutPriority(0)
           }
           .frame(maxWidth: .infinity, alignment: .leading)
-          .opacity(stage == .colors ? 1 : 0)
-          .allowsHitTesting(stage == .colors)
-        }
-        .offset(x: 4)
-
-        if presentationStyle == .sheet {
-          bottomButtonBar
-            .padding(
-              .top,
-              70 - verticalSpacing)
         }
       }
-      .padding(
-        .horizontal,
-        isCompact ? innerHorizontalPadding : 62
-      )
-      .padding(.top, isCompact ? 32 : 58)
-      .padding(
-        .bottom,
-        CGFloat(isCompact ? 32 : 48)
-          // Embedded style pins Back/Next in a bottom-trailing overlay; keep
-          // room for them so centered content never sits underneath.
-          + (presentationStyle == .embedded ? 76 : 0)
-      )
-      .frame(maxWidth: 1180)
+      .padding(.horizontal, innerHorizontalPadding)
+      .padding(.vertical, isCompact ? 32 : 40)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       .background(
         Group {
           if presentationStyle == .sheet {
-            if theme.isDark {
-              RoundedRectangle(cornerRadius: 20)
-                .fill(Color(red: 62 / 255, green: 64 / 255, blue: 80 / 255).opacity(0.85))
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
-                .overlay(
-                  RoundedRectangle(cornerRadius: 20)
-                    .inset(by: 0.5)
-                    .stroke(Color(hex: "585858"), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.35), radius: 20, x: 0, y: 8)
-            } else {
-              RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 8)
-            }
+            RoundedRectangle(cornerRadius: 20)
+              .fill(Color.white)
+              .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 8)
           }
         }
       )
-      .overlay(alignment: .topTrailing) {
-        if presentationStyle == .sheet {
-          Button {
-            commitPendingEditsIfNeeded()
-            categoryStore.persist()
-            onDismiss?()
-          } label: {
-            Image(systemName: "xmark")
-              .font(.system(size: 14, weight: .semibold))
-              .foregroundColor(theme.isDark ? Color(hex: "DDDDDD") : Color(hex: "606060"))
-          }
-          .buttonStyle(.plain)
-          .pointingHandCursor()
-          .padding(20)
-        }
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
       .padding(.horizontal, outerHorizontalPadding)
       .padding(.vertical, presentationStyle == .sheet ? 24 : 0)
     }
@@ -803,10 +743,8 @@ struct ColorOrganizerRoot: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
           Text("Edit title and description")
-            .font(
-              Font.custom("Instrument Serif", size: 30)
-            )
-            .foregroundColor(theme.isDark ? .white : .black)
+            .font(Font.custom("Instrument Serif", size: 30))
+            .foregroundColor(.black)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
       }
@@ -815,20 +753,14 @@ struct ColorOrganizerRoot: View {
         instructionRow(
           icon: "CategoriesOrganize",
           text:
-            String(
-              localized:
-                "Dayflow organizes your activities by the category titles and descriptions you provide."
-            )
+            "Dayflow organizes your activities by the category titles and descriptions you provide."
         )
         .frame(maxWidth: isCompact ? .infinity : 280, alignment: .leading)
 
         instructionRow(
           icon: "CategoriesTextSelect",
           text:
-            String(
-              localized:
-                "Try to provide as much details in the descriptions as you can to help Dayflow understand your workflow and habits."
-            )
+            "Try to provide as much details in the descriptions as you can to help Dayflow understand your workflow and habits."
         )
         .frame(maxWidth: isCompact ? .infinity : 280, alignment: .leading)
       }
@@ -865,10 +797,8 @@ struct ColorOrganizerRoot: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
           Text("Edit colors")
-            .font(
-              Font.custom("Instrument Serif", size: 30)
-            )
-            .foregroundColor(theme.isDark ? .white : .black)
+            .font(Font.custom("Instrument Serif", size: 30))
+            .foregroundColor(.black)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
       }
@@ -903,11 +833,8 @@ struct ColorOrganizerRoot: View {
       VStack(alignment: .leading, spacing: 12) {
         Text(
           isDraggingColor
-            ? String(localized: "Drop on a category →")
-            : String(
-              localized:
-                "Click and drag on the canvas above to change the color palette. Then drag a color onto a category."
-            )
+            ? "Drop on a category →"
+            : "Click and drag on the canvas above to change the color palette. Then drag a color onto a category."
         )
         .font(Font.custom("Nunito", size: 13).weight(.medium))
         .foregroundColor(Color(red: 0.3, green: 0.3, blue: 0.3))
@@ -945,23 +872,29 @@ struct ColorOrganizerRoot: View {
       HStack(spacing: 8) {
         Image(systemName: "plus")
           .font(.system(size: 10, weight: .bold))
-          .foregroundColor(theme.controlText)
+          .foregroundColor(Color(red: 0.49, green: 0.33, blue: 0.16))
 
         Text("Create a new category")
           .font(Font.custom("Nunito", size: 14).weight(.bold))
           .foregroundColor(Color(red: 0.49, green: 0.33, blue: 0.16))
       }
       .padding(.horizontal, 14)
-      .padding(.vertical, 6)
-      .background(theme.controlFill)
-      .cornerRadius(200)
-      .overlay(
-        Capsule()
-          .inset(by: 0.5)
-          .stroke(theme.controlBorder, lineWidth: 1)
+      .padding(.vertical, 8)
+      .background(
+        LinearGradient(
+          gradient: Gradient(stops: [
+            .init(color: Color(red: 1, green: 0.94, blue: 0.79), location: 0),
+            .init(color: Color(red: 1, green: 0.72, blue: 0.43), location: 1),
+          ]),
+          startPoint: .leading,
+          endPoint: .trailing
+        )
       )
+      .cornerRadius(6)
       .overlay(
-        InnerGlow(shape: Capsule(), color: theme.controlInnerGlow, radius: 3)
+        RoundedRectangle(cornerRadius: 6)
+          .inset(by: 0.5)
+          .stroke(Color(red: 0.95, green: 0.71, blue: 0.56), lineWidth: 1)
       )
       .opacity(canAddMoreCategories ? 1 : 0.45)
     }
@@ -970,7 +903,7 @@ struct ColorOrganizerRoot: View {
     .scaleEffect(isAddButtonHovered ? 1.02 : 1.0)
     .animation(.easeOut(duration: 0.18), value: isAddButtonHovered)
     .shadow(
-      color: theme.isDark ? Color.black.opacity(isAddButtonHovered ? 0.18 : 0.1) : .clear,
+      color: Color.black.opacity(isAddButtonHovered ? 0.18 : 0.1),
       radius: isAddButtonHovered ? 6 : 3, x: 0, y: isAddButtonHovered ? 3 : 1
     )
     .onHover { hovering in
@@ -989,17 +922,11 @@ struct ColorOrganizerRoot: View {
     return VStack(alignment: .leading, spacing: 16) {
       ZStack(alignment: .top) {
         RoundedRectangle(cornerRadius: 16)
-          .fill(
-            theme.isDark
-              ? Color(hex: "7F7A94").opacity(0.1) : Color.white.opacity(0.2)
-          )
+          .fill(Color.white.opacity(0.2))
           .frame(maxWidth: .infinity, minHeight: containerHeight, maxHeight: containerHeight)
 
         RoundedRectangle(cornerRadius: 16)
-          .stroke(
-            theme.isDark ? Color(hex: "4E4E4E") : Color(red: 0.94, green: 0.91, blue: 0.87),
-            lineWidth: theme.isDark ? 0.75 : 1
-          )
+          .stroke(Color(red: 0.94, green: 0.91, blue: 0.87), lineWidth: 1)
           .frame(maxWidth: .infinity, minHeight: containerHeight, maxHeight: containerHeight)
 
         ScrollView(showsIndicators: false) {
@@ -1042,8 +969,9 @@ struct ColorOrganizerRoot: View {
           onDismiss?()
         }
       }
+      .frame(maxWidth: .infinity, alignment: .trailing)
     }
-    .frame(maxWidth: .infinity, alignment: .trailing)
+    .frame(minWidth: 260, maxWidth: .infinity, alignment: .leading)
   }
 
   private func categoryEditorPanel(isCompact: Bool) -> some View {
@@ -1053,17 +981,11 @@ struct ColorOrganizerRoot: View {
       VStack(alignment: .leading, spacing: 24) {
         ZStack(alignment: .top) {
           RoundedRectangle(cornerRadius: 16)
-            .fill(
-              theme.isDark
-                ? Color(hex: "7F7A94").opacity(0.1) : Color.white.opacity(0.2)
-            )
+            .fill(Color.white.opacity(0.2))
             .frame(maxWidth: .infinity, minHeight: containerHeight, maxHeight: containerHeight)
 
           RoundedRectangle(cornerRadius: 16)
-            .stroke(
-              theme.isDark ? Color(hex: "4E4E4E") : Color(red: 0.94, green: 0.91, blue: 0.87),
-              lineWidth: theme.isDark ? 0.75 : 1
-            )
+            .stroke(Color(red: 0.94, green: 0.91, blue: 0.87), lineWidth: 1)
             .frame(maxWidth: .infinity, minHeight: containerHeight, maxHeight: containerHeight)
 
           ScrollView(showsIndicators: false) {
@@ -1127,9 +1049,7 @@ struct ColorOrganizerRoot: View {
       .padding()
       .background(
         RoundedRectangle(cornerRadius: 8)
-          .stroke(
-            theme.isDark ? Color(hex: "4E4E4E") : Color(red: 0.89, green: 0.89, blue: 0.89),
-            lineWidth: 0.5)
+          .stroke(Color(red: 0.89, green: 0.89, blue: 0.89), lineWidth: 0.5)
       )
   }
 
@@ -1139,7 +1059,7 @@ struct ColorOrganizerRoot: View {
     case .embedded:
       Color.clear
     case .sheet:
-      (theme.isDark ? theme.sheetOverlay : Color.black.opacity(0.16))
+      Color.black.opacity(0.16)
         .ignoresSafeArea()
     }
   }
@@ -1149,7 +1069,6 @@ struct ColorOrganizerRoot: View {
     let isEnabled: Bool
     let action: () -> Void
 
-    @Environment(\.dayflowTheme) private var theme
     @State private var isPressed = false
     @State private var isHovered = false
 
@@ -1168,14 +1087,11 @@ struct ColorOrganizerRoot: View {
           .padding(.vertical, 18)
           .frame(width: 160, alignment: .center)
           .background(
-            Capsule()
-              .fill(theme.isDark ? theme.secondaryButtonFill : Color.white.opacity(0.85))
+            RoundedRectangle(cornerRadius: 12)
+              .fill(Color.white.opacity(0.85))
               .overlay(
-                Capsule()
-                  .stroke(
-                    theme.isDark
-                      ? theme.secondaryButtonBorder : Color(red: 0.88, green: 0.88, blue: 0.88),
-                    lineWidth: 1)
+                RoundedRectangle(cornerRadius: 12)
+                  .stroke(Color(red: 0.88, green: 0.88, blue: 0.88), lineWidth: 1)
               )
           )
           .opacity(isEnabled ? 1.0 : 0.4)

@@ -15,19 +15,33 @@ final class NotificationBadgeManager: ObservableObject {
   /// Whether there's a pending journal reminder the user hasn't acknowledged
   @Published private(set) var hasPendingReminder: Bool = false
 
+  @Published private(set) var supportUnreadCount = UserDefaults.standard.integer(
+    forKey: "support.unreadCount")
+
+  func setSupportUnreadCount(_ count: Int) {
+    supportUnreadCount = count
+    UserDefaults.standard.set(count, forKey: "support.unreadCount")
+    refreshDockBadge()
+  }
+
   private init() {}
+
+  private func refreshDockBadge() {
+    let count = supportUnreadCount + (hasPendingReminder ? 1 : 0)
+    NSApplication.shared.dockTile.badgeLabel = count > 0 ? String(count) : nil
+  }
 
   // MARK: - Public Methods
 
   /// Shows the badge on both Dock icon and updates state for sidebar
   func showBadge() {
     hasPendingReminder = true
-    NSApplication.shared.dockTile.badgeLabel = "1"
+    refreshDockBadge()
   }
 
   /// Clears the badge from Dock icon and sidebar
   func clearBadge() {
     hasPendingReminder = false
-    NSApplication.shared.dockTile.badgeLabel = nil
+    refreshDockBadge()
   }
 }

@@ -118,7 +118,6 @@ struct DayflowApp: App {
             AppRootView()
               .environmentObject(categoryStore)
               .environmentObject(updaterManager)
-              .environmentObject(journalCoordinator)
           } else {
             OnboardingFlow()
               .environmentObject(AppState.shared)
@@ -317,6 +316,8 @@ struct DayflowApp: App {
 
 extension Notification.Name {
   static let showWhatsNew = Notification.Name("showWhatsNew")
+  static let navigateToJournal = Notification.Name("navigateToJournal")
+  static let analyticsPreferenceChanged = Notification.Name("analyticsPreferenceChanged")
   static let navigateToDaily = Notification.Name("navigateToDaily")
   static let timelineDataUpdated = Notification.Name("timelineDataUpdated")
   static let showTimelineFailureToast = Notification.Name("showTimelineFailureToast")

@@ -232,10 +232,6 @@ struct WhatsNewView: View {
         didHydrateSurveyState = true
       }
     }
-    .task {
-      guard releaseNote.githubStar != nil else { return }
-      await checkGitHubStarStatus()
-    }
     .environment(\.colorScheme, .light)
     .preferredColorScheme(.light)
   }
@@ -246,7 +242,6 @@ struct WhatsNewView: View {
       [
         "version": releaseNote.version,
         "provider_label": currentProviderLabel,
-        "github_star_outcome": releaseNote.githubStar == nil ? "no_prompt" : githubStarOutcome,
       ])
 
     onDismiss()

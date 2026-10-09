@@ -364,7 +364,6 @@ final class ChatService: ObservableObject {
       if isResume, responseText.isEmpty, let error,
         Self.isMissingSessionError(error)
       {
-        pendingFlushTask?.cancel()
         currentSessionId = nil
         self.error = nil
         log(.info, "Saved CLI session is unavailable; rebuilding from conversation history")
@@ -445,6 +444,12 @@ final class ChatService: ObservableObject {
   }
 
   // MARK: - Prompt Building
+
+  static func isMissingSessionError(_ message: String) -> Bool {
+    let text = message.lowercased()
+    return text.contains("no rollout found for thread id")
+      || text.contains("no conversation found with session id")
+  }
 
   private func buildChatRequest(provider: DashboardChatProvider, isResume: Bool) -> DashboardChatRequest {
     switch provider {

@@ -94,15 +94,24 @@ enum LLMProviderID: String, Codable, CaseIterable {
     case gemini
     case ollama
     case chatGPTClaude = "chatgpt_claude"
+    case dayflow
+    case chatGPT = "chatgpt"
+    case claude
+    case openAICompatible = "openai_compatible"
+    case local
 
     var analyticsName: String {
         switch self {
         case .gemini:
             return "gemini"
-        case .ollama:
+        case .ollama, .local:
             return "ollama"
-        case .chatGPTClaude:
+        case .chatGPTClaude, .chatGPT, .claude:
             return "chat_cli"
+        case .openAICompatible:
+            return "openai_compatible"
+        case .dayflow:
+            return "dayflow"
         }
     }
 
@@ -121,10 +130,16 @@ enum LLMProviderID: String, Codable, CaseIterable {
         switch self {
         case .gemini:
             return "gemini"
-        case .ollama:
+        case .ollama, .local:
             return "local"
-        case .chatGPTClaude:
+        case .chatGPTClaude, .chatGPT:
             return chatTool == .claude ? "claude" : "chatgpt"
+        case .claude:
+            return "claude"
+        case .openAICompatible:
+            return "openai_compatible"
+        case .dayflow:
+            return "dayflow"
         }
     }
 }
@@ -162,6 +177,40 @@ enum LLMProviderRoutingPreferences {
             defaults.removeObject(forKey: backupChatCLIToolDefaultsKey)
         }
     }
+}
+
+enum LLMProviderSetupPreferencesError: Error {
+  case writeVerificationFailed
+}
+
+enum LLMProviderSetupPreferences {
+  static func isComplete(
+    _ providerID: LLMProviderID,
+    in defaults: UserDefaults = .standard
+  ) -> Bool {
+    defaults.bool(forKey: completionKey(for: providerID))
+  }
+
+  static func markComplete(
+    _ providerID: LLMProviderID,
+    in defaults: UserDefaults = .standard
+  ) throws {
+    let key = completionKey(for: providerID)
+    let previousValue = defaults.object(forKey: key)
+    defaults.set(true, forKey: key)
+    guard isComplete(providerID, in: defaults) else {
+      if let previousValue {
+        defaults.set(previousValue, forKey: key)
+      } else {
+        defaults.removeObject(forKey: key)
+      }
+      throw LLMProviderSetupPreferencesError.writeVerificationFailed
+    }
+  }
+
+  private static func completionKey(for providerID: LLMProviderID) -> String {
+    "\(providerID.rawValue)SetupComplete"
+  }
 }
 
 struct BatchingConfig {

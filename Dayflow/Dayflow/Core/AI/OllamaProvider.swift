@@ -7,10 +7,14 @@ import AppKit
 import Foundation
 
 final class OllamaProvider {
-  private let endpoint: String
-  private let screenshotInterval: TimeInterval = 10  // seconds between screenshots
+  let endpoint: String
+  private let injectedRuntimeConfiguration: OpenAICompatibleRuntimeConfiguration?
+  let screenshotInterval: TimeInterval = 10  // seconds between screenshots
   // Read persisted local settings
-  private var savedModelId: String {
+  var savedModelId: String {
+    if let injectedRuntimeConfiguration {
+      return injectedRuntimeConfiguration.modelID
+    }
     if let m = UserDefaults.standard.string(forKey: "llmLocalModelId"), !m.isEmpty {
       return m
     }
@@ -19,12 +23,15 @@ final class OllamaProvider {
     return LocalModelPreferences.defaultModelId(for: engine)
   }
   private var isLMStudio: Bool {
-    (UserDefaults.standard.string(forKey: "llmLocalEngine") ?? "ollama") == "lmstudio"
+    guard injectedRuntimeConfiguration == nil else { return false }
+    return (UserDefaults.standard.string(forKey: "llmLocalEngine") ?? "ollama") == "lmstudio"
   }
   private var isCustomEngine: Bool {
-    (UserDefaults.standard.string(forKey: "llmLocalEngine") ?? "ollama") == "custom"
+    guard injectedRuntimeConfiguration == nil else { return false }
+    return (UserDefaults.standard.string(forKey: "llmLocalEngine") ?? "ollama") == "custom"
   }
   private var customAPIKey: String? {
+    guard injectedRuntimeConfiguration == nil else { return nil }
     let trimmed =
       UserDefaults.standard.string(forKey: "llmLocalAPIKey")?.trimmingCharacters(
         in: .whitespacesAndNewlines) ?? ""
@@ -33,11 +40,37 @@ final class OllamaProvider {
 
   // Get the actual local engine type for analytics tracking
   private var localEngine: String {
-    UserDefaults.standard.string(forKey: "llmLocalEngine") ?? "ollama"
+    if let injectedRuntimeConfiguration {
+      return injectedRuntimeConfiguration.analyticsProvider
+    }
+    return UserDefaults.standard.string(forKey: "llmLocalEngine") ?? "ollama"
+  }
+
+  var providerID: LLMProviderID {
+    injectedRuntimeConfiguration == nil ? .local : .openAICompatible
+  }
+
+  var authorizationBearerToken: String? {
+    if let injectedRuntimeConfiguration {
+      return injectedRuntimeConfiguration.bearerToken
+    }
+    if isLMStudio {
+      return "lm-studio"
+    }
+    if isCustomEngine {
+      return customAPIKey
+    }
+    return nil
   }
 
   init(endpoint: String = "http://localhost:1234") {
     self.endpoint = endpoint
+    self.injectedRuntimeConfiguration = nil
+  }
+
+  init(openAICompatible configuration: OpenAICompatibleRuntimeConfiguration) {
+    self.endpoint = configuration.endpoint
+    self.injectedRuntimeConfiguration = configuration
   }
 
   // Strip user references from observations to prevent LLM from using third-person language
@@ -174,20 +207,25 @@ final class OllamaProvider {
     let timestamp: TimeInterval  // Seconds from batch start
   }
 
-  private struct ChatRequest: Codable {
+  struct ChatRequest: Codable {
     let model: String
     let messages: [ChatMessage]
     var temperature: Double = 0.7
     var max_tokens: Int = 4000
     var stream: Bool = false
+    var reasoning: Reasoning? = nil
+
+    struct Reasoning: Codable {
+      let effort: String
+    }
   }
 
-  private struct ChatMessage: Codable {
+  struct ChatMessage: Codable {
     let role: String
     let content: [MessageContent]
   }
 
-  private struct MessageContent: Codable {
+  struct MessageContent: Codable {
     let type: String
     let text: String?
     let image_url: ImageURL?
@@ -197,7 +235,7 @@ final class OllamaProvider {
     }
   }
 
-  private struct ChatResponse: Codable {
+  struct ChatResponse: Codable {
     let choices: [Choice]
 
     struct Choice: Codable {
@@ -209,8 +247,28 @@ final class OllamaProvider {
     }
   }
 
+  func makeChatURLRequest(
+    _ request: ChatRequest,
+    url: URL? = nil,
+    timeoutInterval: TimeInterval = 60.0
+  ) throws -> URLRequest {
+    guard let resolvedURL = url ?? LocalEndpointUtilities.chatCompletionsURL(baseURL: endpoint)
+    else {
+      throw NSError(
+        domain: "OllamaProvider", code: 15,
+        userInfo: [NSLocalizedDescriptionKey: "Invalid local endpoint URL"])
+    }
+
+    var urlRequest = URLRequest(url: resolvedURL)
+    urlRequest.httpMethod = "POST"
+    urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    applyAuthorizationHeader(to: &urlRequest)
+    urlRequest.httpBody = try JSONEncoder().encode(request)
+    urlRequest.timeoutInterval = timeoutInterval
+    return urlRequest
+  }
+
   private func getSimpleFrameDescription(_ frame: FrameData, batchId: Int64?) async -> String? {
-    // Simple prompt focused on just describing what's happening
     let prompt = """
       Describe what you see on this computer screen in 1-2 sentences.
       Focus on: what application/site is open, what the user is doing, and any relevant details visible.
@@ -262,7 +320,7 @@ final class OllamaProvider {
     }
   }
 
-  private func callChatAPI(
+  func callChatAPI(
     _ request: ChatRequest, operation: String, batchId: Int64? = nil, maxRetries: Int = 3
   ) async throws -> ChatResponse {
     guard let url = LocalEndpointUtilities.chatCompletionsURL(baseURL: endpoint) else {
@@ -282,12 +340,7 @@ final class OllamaProvider {
       var didLogTiming = false
       var apiStart: Date?
       do {
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        applyAuthorizationHeader(to: &urlRequest)
-        urlRequest.httpBody = try JSONEncoder().encode(request)
-        urlRequest.timeoutInterval = 60.0  // 60-second timeout
+        let urlRequest = try makeChatURLRequest(request, url: url)
 
         let start = Date()
         apiStart = start
@@ -994,7 +1047,7 @@ final class OllamaProvider {
         userInfo: [NSLocalizedDescriptionKey: "Failed to merge cards after multiple attempts"])
   }
 
-  private func parseJSONResponse<T: Codable>(_ type: T.Type, from data: Data) throws -> T {
+  func parseJSONResponse<T: Codable>(_ type: T.Type, from data: Data) throws -> T {
     // First try direct parsing
     do {
       return try JSONDecoder().decode(type, from: data)

@@ -87,7 +87,6 @@ struct SetupSidebarItem: View {
             .opacity(0.5)
             .padding(.leading, 38)
         }
-        .frame(width: 20, height: 20)  // Fixed frame for consistent centering
 
         Text(title)
           .font(.custom("Nunito", size: 15))

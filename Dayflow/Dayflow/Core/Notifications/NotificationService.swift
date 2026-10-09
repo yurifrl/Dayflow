@@ -2,7 +2,7 @@
 //  NotificationService.swift
 //  Dayflow
 //
-//  Main orchestrator for Daily and Weekly notifications.
+//  Main orchestrator for journal reminder notifications.
 //  Handles scheduling, permission requests, and notification tap responses.
 //
 
@@ -32,6 +32,11 @@ final class NotificationService: NSObject, ObservableObject {
     Task {
       await retireJournalNotifications()
       await checkPermissionStatus()
+
+      // Reschedule if reminders are enabled
+      if NotificationPreferences.isEnabled {
+        scheduleReminders()
+      }
     }
   }
 
@@ -79,14 +84,70 @@ final class NotificationService: NSObject, ObservableObject {
     }
   }
 
+  /// Read the current notification authorization status and refresh the cached flag.
+  func authorizationStatus() async -> UNAuthorizationStatus {
+    let settings = await center.notificationSettings()
+    let authorizationStatus = settings.authorizationStatus
+    await MainActor.run {
+      self.permissionGranted = Self.canScheduleNotifications(for: authorizationStatus)
+    }
+    return authorizationStatus
+  }
+
   /// Schedule all reminders based on current preferences
   func scheduleReminders() {
     // First, cancel all existing journal reminders
     cancelAllReminders()
 
-    let delivered = await center.deliveredNotifications()
-    let deliveredIDs = delivered.map(\.request.identifier).filter { $0.hasPrefix("journal.") }
-    center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
+    let weekdays = NotificationPreferences.weekdays
+    guard !weekdays.isEmpty else { return }
+
+    // Schedule intention reminders
+    let intentionHour = NotificationPreferences.intentionHour
+    let intentionMinute = NotificationPreferences.intentionMinute
+
+    for weekday in weekdays {
+      scheduleNotification(
+        identifier: "journal.intentions.weekday.\(weekday)",
+        title: "Set your intentions",
+        body: "Take a moment to plan your day with Dayflow.",
+        hour: intentionHour,
+        minute: intentionMinute,
+        weekday: weekday
+      )
+    }
+
+    // Schedule reflection reminders
+    let reflectionHour = NotificationPreferences.reflectionHour
+    let reflectionMinute = NotificationPreferences.reflectionMinute
+
+    for weekday in weekdays {
+      scheduleNotification(
+        identifier: "journal.reflections.weekday.\(weekday)",
+        title: "Time to reflect",
+        body: "How did your day go? Capture your thoughts.",
+        hour: reflectionHour,
+        minute: reflectionMinute,
+        weekday: weekday
+      )
+    }
+
+    NotificationPreferences.isEnabled = true
+    print("[NotificationService] Scheduled \(weekdays.count * 2) notifications")
+  }
+
+  /// Cancel all journal reminder notifications
+  func cancelAllReminders() {
+    let center = self.center  // Capture locally while on MainActor
+    center.getPendingNotificationRequests { requests in
+      let journalIds =
+        requests
+        .filter { $0.identifier.hasPrefix("journal.") }
+        .map { $0.identifier }
+
+      center.removePendingNotificationRequests(withIdentifiers: journalIds)
+      print("[NotificationService] Cancelled \(journalIds.count) pending notifications")
+    }
   }
 
   /// Notify the user that yesterday's daily recap is ready.
@@ -146,6 +207,17 @@ final class NotificationService: NSObject, ObservableObject {
 
   // MARK: - Private Methods
 
+  /// Remove reminders left by the retired Journal feature without touching Daily or Weekly.
+  private func retireJournalNotifications() async {
+    let pending = await center.pendingNotificationRequests()
+    let pendingIDs = pending.filter { $0.identifier.hasPrefix("journal.") }.map(\.identifier)
+    center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
+
+    let delivered = await center.deliveredNotifications()
+    let deliveredIDs = delivered.map(\.request.identifier).filter { $0.hasPrefix("journal.") }
+    center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
+  }
+
   private func checkPermissionStatus() async {
     let settings = await center.notificationSettings()
     await MainActor.run {
@@ -166,8 +238,8 @@ final class NotificationService: NSObject, ObservableObject {
     print("[NotificationService] removed pending notification identifier=\(identifier)")
 
     let content = UNMutableNotificationContent()
-    content.title = String(localized: "Your daily recap for yesterday is ready")
-    content.body = String(localized: "Tap to open it in Daily view.")
+    content.title = "Your daily recap for yesterday is ready"
+    content.body = "Tap to open it in Daily view."
     content.sound = .default
     content.categoryIdentifier = "daily_recap"
     content.userInfo = ["day": day]
@@ -249,6 +321,40 @@ final class NotificationService: NSObject, ObservableObject {
     }
   }
 
+  private func scheduleNotification(
+    identifier: String,
+    title: String,
+    body: String,
+    hour: Int,
+    minute: Int,
+    weekday: Int
+  ) {
+    var dateComponents = DateComponents()
+    dateComponents.hour = hour
+    dateComponents.minute = minute
+    dateComponents.weekday = weekday
+
+    let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+
+    let content = UNMutableNotificationContent()
+    content.title = title
+    content.body = body
+    content.sound = .default
+    content.categoryIdentifier = "journal_reminder"
+
+    let request = UNNotificationRequest(
+      identifier: identifier,
+      content: content,
+      trigger: trigger
+    )
+
+    center.add(request) { error in
+      if let error = error {
+        print("[NotificationService] Failed to schedule \(identifier): \(error)")
+      }
+    }
+  }
+
   private func activateAppForNotificationTap() {
     NSApp.activate(ignoringOtherApps: true)
     let showDockIcon = UserDefaults.standard.object(forKey: "showDockIcon") as? Bool ?? true
@@ -275,6 +381,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         + "action=\(response.actionIdentifier) day=\(day ?? "nil")"
     )
 
+    let isJournalNotification = identifier.hasPrefix("journal.")
     let isDailyRecapNotification = identifier.hasPrefix("daily.")
 
     guard isJournalNotification || isDailyRecapNotification else {
@@ -344,7 +451,8 @@ extension NotificationService: UNUserNotificationCenterDelegate {
       return
     }
 
-    if identifier.hasPrefix("support.") {
+    if identifier.hasPrefix("daily.") {
+      print("[NotificationService] willPresent options=banner,sound identifier=\(identifier)")
       completionHandler([.banner, .sound])
       return
     }

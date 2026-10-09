@@ -161,6 +161,7 @@ struct LLMProviderSetupView: View {
   @StateObject private var setupState = ProviderSetupState()
   @State private var sidebarOpacity: Double = 0
   @State private var contentOpacity: Double = 0
+  let contentGap: CGFloat = 76
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -593,8 +594,7 @@ struct LLMProviderSetupView: View {
                   onTestComplete: { success in
                     setupState.hasTestedConnection = true
                     setupState.testSuccessful = success
-                  },
-                  usesOnboardingStyle: true
+                  }
                 )
               } else {
                 // Engine selection: LM Studio or Custom
@@ -644,7 +644,8 @@ struct LLMProviderSetupView: View {
         onRetry: { setupState.refreshCLIStatuses() },
         onInstall: { tool in openChatCLIInstallPage(for: tool) },
         selectedTool: setupState.preferredCLITool,
-        onSelectTool: { tool in setupState.selectPreferredCLITool(tool) }
+        onSelectTool: { tool in setupState.selectPreferredCLITool(tool) },
+        nextButton: { nextButton }
       )
       .onAppear {
         setupState.ensureCLICheckStarted()

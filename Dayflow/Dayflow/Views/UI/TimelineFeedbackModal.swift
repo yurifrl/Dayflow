@@ -235,6 +235,61 @@ extension TimelineFeedbackModal {
   }
 }
 
+// MARK: - Thin scroll bar for the feedback text editor
+
+/// Draws the vertical scroller knob at half the standard width.
+private final class ThinFeedbackScroller: NSScroller {
+  override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
+
+  override func drawKnob() {
+    let knob = rect(for: .knob)
+    guard knob.width > 0, knob.height > 0 else { return }
+    let width = knob.width * 0.5
+    let knobRect = NSRect(x: knob.midX - width / 2, y: knob.minY, width: width, height: knob.height)
+    let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    (isDark ? NSColor.white : NSColor.black).withAlphaComponent(0.4).setFill()
+    NSBezierPath(roundedRect: knobRect, xRadius: width / 2, yRadius: width / 2).fill()
+  }
+}
+
+/// Finds the `TextEditor`'s enclosing scroll view and swaps in the thin scroller.
+private struct ThinScrollerInstaller: NSViewRepresentable {
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView()
+    DispatchQueue.main.async { install(near: view) }
+    return view
+  }
+
+  func updateNSView(_ nsView: NSView, context: Context) {
+    DispatchQueue.main.async { install(near: nsView) }
+  }
+
+  private func install(near view: NSView) {
+    var ancestor = view.superview
+    var hops = 0
+    while let current = ancestor, hops < 6 {
+      if let scrollView = textEditorScrollView(in: current) {
+        if !(scrollView.verticalScroller is ThinFeedbackScroller) {
+          scrollView.verticalScroller = ThinFeedbackScroller()
+        }
+        return
+      }
+      ancestor = current.superview
+      hops += 1
+    }
+  }
+
+  private func textEditorScrollView(in view: NSView) -> NSScrollView? {
+    if let scrollView = view as? NSScrollView, scrollView.documentView is NSTextView {
+      return scrollView
+    }
+    for subview in view.subviews {
+      if let found = textEditorScrollView(in: subview) { return found }
+    }
+    return nil
+  }
+}
+
 #Preview {
   TimelineFeedbackModal(
     message: .constant(""),

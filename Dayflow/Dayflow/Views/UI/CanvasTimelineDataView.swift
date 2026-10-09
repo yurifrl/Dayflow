@@ -74,6 +74,7 @@ struct CanvasTimelineDataView: View {
   @Binding var refreshTrigger: Int
   let weeklyHoursFrame: CGRect
   @Binding var weeklyHoursIntersectsCard: Bool
+  var mutedCategoryKeys: Set<String> = []
 
   @Environment(\.dayflowTheme) private var theme
   @State private var selectedCardId: String? = nil

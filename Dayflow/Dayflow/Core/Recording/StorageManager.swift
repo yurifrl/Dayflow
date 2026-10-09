@@ -619,7 +619,7 @@ final class StorageManager: StorageManaging, @unchecked Sendable {
   private let dbURL: URL
   private var db: DatabasePool!  // var to allow recovery reassignment
   private let fileMgr = FileManager.default
-  private let root: URL
+  let root: URL
   private let backupsDir: URL
   var recordingsRoot: URL { root }
 
@@ -705,7 +705,7 @@ final class StorageManager: StorageManaging, @unchecked Sendable {
   }
 
   // TEMPORARY DEBUG: Timing helpers for database operations
-  private func timedWrite<T>(_ label: String, _ block: (Database) throws -> T) throws -> T {
+  func timedWrite<T>(_ label: String, _ block: (Database) throws -> T) throws -> T {
     let callStart = CFAbsoluteTimeGetCurrent()
     var execStart: CFAbsoluteTime = 0
     var execEnd: CFAbsoluteTime = 0
@@ -797,7 +797,7 @@ final class StorageManager: StorageManaging, @unchecked Sendable {
     }
   }
 
-  private func timedRead<T>(_ label: String, _ block: (Database) throws -> T) throws -> T {
+  func timedRead<T>(_ label: String, _ block: (Database) throws -> T) throws -> T {
     let callStart = CFAbsoluteTimeGetCurrent()
     var execStart: CFAbsoluteTime = 0
     var execEnd: CFAbsoluteTime = 0

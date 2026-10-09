@@ -30,8 +30,6 @@ struct TimelineReviewSummarySnapshot {
 }
 
 struct TimelineReviewSummaryCard: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let summary: TimelineReviewSummarySnapshot
   let cardsToReviewCount: Int
   var onReviewTap: (() -> Void)? = nil
@@ -41,6 +39,8 @@ struct TimelineReviewSummaryCard: View {
     static let headerSpacing: CGFloat = 2
     static let contentSpacing: CGFloat = 16
 
+    static let titleColor = Color(hex: "333333")
+    static let subtitleColor = Color(hex: "707070")
     static let linkColor = Color(hex: "F96E00")
 
     static let barHeight: CGFloat = 39
@@ -90,7 +90,7 @@ struct TimelineReviewSummaryCard: View {
     VStack(alignment: .leading, spacing: Design.headerSpacing) {
       Text("Your review")
         .font(.custom("InstrumentSerif-Regular", size: 20))
-        .foregroundColor(theme.textPrimary)
+        .foregroundColor(Design.titleColor)
 
       subtitle
         .font(.custom("Nunito", size: 11))
@@ -114,19 +114,22 @@ struct TimelineReviewSummaryCard: View {
   private var subtitle: Text {
     let baseText =
       summary.hasData
-      ? String(localized: "Last reviewed at \(formattedLastReviewedAt).")
-      : String(localized: "No reviews yet.")
+      ? "Last reviewed at \(formattedLastReviewedAt)."
+      : "No reviews yet."
     var composed = Text(baseText)
-      .foregroundColor(theme.textSecondary)
+      .foregroundColor(Design.subtitleColor)
 
     guard cardsToReviewCount > 0 else {
       return composed
     }
 
+    let reviewText = "Review \(reviewCountText)"
     composed =
       composed
-      + Text(" Review \(cardsToReviewCount) cards to update your data.")
+      + Text(" \(reviewText)")
       .foregroundColor(Design.linkColor)
+      + Text(" to update your data.")
+      .foregroundColor(Design.subtitleColor)
 
     return composed
   }
@@ -192,7 +195,7 @@ struct TimelineReviewSummaryCard: View {
     let placeholder = summary.hasData == false
     let distracted = ReviewMetric(
       id: "distracted",
-      label: String(localized: "Distracted"),
+      label: "Distracted",
       ratio: max(CGFloat(summary.distractedRatio), 0),
       durationText: durationText(summary.distractedDuration),
       style: metricStyle(
@@ -206,21 +209,21 @@ struct TimelineReviewSummaryCard: View {
 
     let neutral = ReviewMetric(
       id: "neutral",
-      label: String(localized: "Neutral"),
+      label: "Neutral",
       ratio: max(CGFloat(summary.neutralRatio), 0),
       durationText: durationText(summary.neutralDuration),
       style: metricStyle(
-        baseColor: theme.targetsTrackFill,
+        baseColor: Color(hex: "EAE0DB"),
         shadow: Color(red: 225 / 255, green: 210 / 255, blue: 203 / 255).opacity(0.25),
-        legendFill: theme.targetsTrackFill.opacity(0.4),
-        legendStroke: theme.targetsTrackBorder,
+        legendFill: Color(hex: "DDDBDA").opacity(0.4),
+        legendStroke: Color(hex: "DDDBDA"),
         placeholder: placeholder
       )
     )
 
     let productive = ReviewMetric(
       id: "productive",
-      label: String(localized: "Focused"),
+      label: "Focused",
       ratio: max(CGFloat(summary.productiveRatio), 0),
       durationText: durationText(summary.productiveDuration),
       style: metricStyle(
@@ -242,15 +245,11 @@ struct TimelineReviewSummaryCard: View {
     legendStroke: Color,
     placeholder: Bool
   ) -> ReviewMetricStyle {
-    let barColor = placeholder ? theme.targetsTrackFill : baseColor
-    let barShadow: Color
-    if theme.isDark {
-      barShadow = Color.black.opacity(0.35)
-    } else if placeholder {
-      barShadow = Color(red: 225 / 255, green: 210 / 255, blue: 203 / 255).opacity(0.25)
-    } else {
-      barShadow = shadow
-    }
+    let barColor = placeholder ? Color(hex: "EAE0DB") : baseColor
+    let barShadow =
+      placeholder
+      ? Color(red: 225 / 255, green: 210 / 255, blue: 203 / 255).opacity(0.25)
+      : shadow
     let gradient = LinearGradient(
       colors: [barColor.opacity(0.5), barColor],
       startPoint: .topLeading,
@@ -272,11 +271,11 @@ struct TimelineReviewSummaryCard: View {
     let minutes = totalMinutes % 60
 
     if hours > 0 && minutes > 0 {
-      return String(localized: "\(hours)h \(minutes)m")
+      return "\(hours)h \(minutes)m"
     } else if hours > 0 {
-      return String(localized: "\(hours)h")
+      return "\(hours)h"
     } else {
-      return String(localized: "\(minutes)m")
+      return "\(minutes)m"
     }
   }
 
@@ -286,12 +285,13 @@ struct TimelineReviewSummaryCard: View {
   }
 
   private var reviewCountText: String {
-    String(localized: "\(cardsToReviewCount) cards")
+    cardsToReviewCount == 1 ? "1 card" : "\(cardsToReviewCount) cards"
   }
 
   private static let timeFormatter: DateFormatter = {
     let formatter = DateFormatter()
-    formatter.timeStyle = .short
+    formatter.dateFormat = "h:mm a"
+    formatter.locale = Locale(identifier: "en_US_POSIX")
     return formatter
   }()
 }

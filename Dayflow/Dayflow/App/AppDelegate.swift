@@ -28,6 +28,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   private var heartbeatTimer: Timer?
   private var appLaunchDate: Date?
   private var foregroundStartTime: Date?
+  private var analyticsConfigured = false
 
   override init() {
     UserDefaultsMigrator.migrateIfNeeded()

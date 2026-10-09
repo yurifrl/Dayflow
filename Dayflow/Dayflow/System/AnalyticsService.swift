@@ -34,6 +34,11 @@ final class AnalyticsService {
         }
     }
 
+    /// Telemetry is stubbed in this fork; no distinct ID exists.
+    func currentDistinctId() -> String? {
+        return nil
+    }
+
     // MARK: - Lifecycle
 
     func start(apiKey: String, host: String) {
@@ -52,6 +57,11 @@ final class AnalyticsService {
     // MARK: - Event Capture
 
     func capture(_ name: String, _ props: [String: Any] = [:]) {
+        guard isOptedIn else { return }
+        // No-op: analytics disabled in this build.
+    }
+
+    func flush() {
         guard isOptedIn else { return }
         // No-op: analytics disabled in this build.
     }

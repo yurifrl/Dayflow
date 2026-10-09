@@ -409,6 +409,7 @@ extension MainView {
             TabFilterBar(
                 categories: categoryStore.editableCategories,
                 idleCategory: categoryStore.idleCategory,
+                mutedCategoryKeys: .constant([]),
                 onManageCategories: { showCategoryEditor = true }
             )
             .padding(.leading, 10)
