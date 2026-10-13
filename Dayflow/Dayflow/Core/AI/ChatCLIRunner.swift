@@ -49,8 +49,8 @@ struct ChatCLIRunResult {
   let stdout: String  // Parsed/cleaned response
   let rawStdout: String  // Original stdout for thinking extraction
   let stderr: String
-  let shellCommand: String?
-  let environmentOverrides: [String: String]
+  var shellCommand: String? = nil
+  var environmentOverrides: [String: String] = [:]
   let startedAt: Date
   let finishedAt: Date
   let usage: TokenUsage?

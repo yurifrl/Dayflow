@@ -8,159 +8,131 @@ struct SettingsOtherTabView: View {
   @State private var appLanguage = AppLanguagePreferences.selection()
 
   var body: some View {
-    VStack(alignment: .leading, spacing: SettingsStyle.sectionSpacing) {
-      appPreferencesSection
-      outputLanguageSection
-    }
-  }
-
-  // MARK: - App preferences
-
-  private var appPreferencesSection: some View {
-    SettingsSection(
-      title: String(localized: "App preferences"),
-      subtitle: String(localized: "General toggles and telemetry settings.")
-    ) {
-      VStack(alignment: .leading, spacing: 0) {
-        SettingsRow(
-          label: String(localized: "App language"),
-          subtitle: String(
-            localized:
-              "Choose a language for Dayflow only. Quit and reopen the app to apply a change.")
-        ) {
-          Picker("App language", selection: $appLanguage) {
-            ForEach(AppLanguage.allCases) { language in
-              Text(verbatim: language.title).tag(language)
-            }
-          }
-          .pickerStyle(.menu)
-          .labelsHidden()
-          .frame(width: 210)
-          .onChange(of: appLanguage) {
-            AppLanguagePreferences.setSelection(appLanguage)
-          }
-        }
-
-        SettingsRow(
-          label: String(localized: "Light/Dark mode"),
-          subtitle: String(localized: "Follow the system setting or pick light or dark.")
-        ) {
-          Picker("", selection: $appearance) {
-            ForEach(DayflowAppearance.allCases) { option in
-              Text(option.title).tag(option)
-            }
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
-          .frame(width: 210)
-          .onChange(of: appearance) { _, newValue in
-            AnalyticsService.shared.capture(
-              "appearance_changed", ["appearance": newValue.rawValue])
-          }
-        }
-
-        SettingsRow(
-          label: String(localized: "Launch Dayflow at login"),
-          subtitle:
-            String(
-              localized:
-                "Keeps the menu bar controller running right after you sign in so capture can resume instantly."
-            )
-        ) {
-          SettingsToggle(
+    VStack(alignment: .leading, spacing: 28) {
+      SettingsCard(title: "App preferences", subtitle: "General toggles and telemetry settings") {
+        VStack(alignment: .leading, spacing: 14) {
+          Toggle(
             isOn: Binding(
               get: { launchAtLoginManager.isEnabled },
               set: { launchAtLoginManager.setEnabled($0) }
             )
+          ) {
+            Text("Launch Dayflow at login")
+              .font(.custom("Nunito", size: 13))
+              .foregroundColor(.black.opacity(0.7))
+          }
+          .toggleStyle(.switch)
+          .pointingHandCursor()
+
+          Text(
+            "Keeps the menu bar controller running right after you sign in so capture can resume instantly."
           )
-        }
+          .font(.custom("Nunito", size: 11.5))
+          .foregroundColor(.black.opacity(0.5))
 
-        SettingsRow(label: String(localized: "Share crash reports and anonymous usage data")) {
-          SettingsToggle(isOn: $viewModel.analyticsEnabled)
-        }
+          Toggle(isOn: $viewModel.analyticsEnabled) {
+            Text("Share crash reports and anonymous usage data")
+              .font(.custom("Nunito", size: 13))
+              .foregroundColor(.black.opacity(0.7))
+          }
+          .toggleStyle(.switch)
+          .pointingHandCursor()
 
-        SettingsRow(
-          label: String(localized: "Show Dock icon"),
-          subtitle: String(localized: "When off, Dayflow runs as a menu bar-only app.")
-        ) {
-          SettingsToggle(isOn: $viewModel.showDockIcon)
-        }
+          Toggle(isOn: $viewModel.showDockIcon) {
+            Text("Show Dock icon")
+              .font(.custom("Nunito", size: 13))
+              .foregroundColor(.black.opacity(0.7))
+          }
+          .toggleStyle(.switch)
+          .pointingHandCursor()
 
-        SettingsRow(
-          label: String(localized: "Show app/website icons in timeline"),
-          subtitle: String(localized: "When off, timeline cards won't show app or website icons.")
-        ) {
-          SettingsToggle(isOn: $viewModel.showTimelineAppIcons)
-        }
+          Text("When off, Dayflow runs as a menu bar-only app.")
+            .font(.custom("Nunito", size: 11.5))
+            .foregroundColor(.black.opacity(0.5))
 
-        SettingsRow(
-          label: String(localized: "Show daily goal popups"),
-          subtitle:
-            String(
-              localized:
-                "When off, Dayflow won't automatically open goal setup or yesterday's review after 4am."
+          Toggle(isOn: $viewModel.showTimelineAppIcons) {
+            Text("Show app/website icons in timeline")
+              .font(.custom("Nunito", size: 13))
+              .foregroundColor(.black.opacity(0.7))
+          }
+          .toggleStyle(.switch)
+          .pointingHandCursor()
+
+          Text("When off, timeline cards won't show app or website icons.")
+            .font(.custom("Nunito", size: 11.5))
+            .foregroundColor(.black.opacity(0.5))
+
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Output language override")
+              .font(.custom("Nunito", size: 13))
+              .foregroundColor(.black.opacity(0.7))
+            HStack(spacing: 10) {
+              TextField("English", text: $viewModel.outputLanguageOverride)
+                .textFieldStyle(.roundedBorder)
+                .disableAutocorrection(true)
+                .frame(maxWidth: 220)
+                .focused($isOutputLanguageFocused)
+                .onChange(of: viewModel.outputLanguageOverride) {
+                  viewModel.markOutputLanguageOverrideEdited()
+                }
+              DayflowSurfaceButton(
+                action: {
+                  viewModel.saveOutputLanguageOverride()
+                  isOutputLanguageFocused = false
+                },
+                content: {
+                  HStack(spacing: 6) {
+                    Image(
+                      systemName: viewModel.isOutputLanguageOverrideSaved
+                        ? "checkmark" : "square.and.arrow.down"
+                    )
+                    .font(.system(size: 12, weight: .semibold))
+                    Text(viewModel.isOutputLanguageOverrideSaved ? "Saved" : "Save")
+                      .font(.custom("Nunito", size: 12))
+                  }
+                  .padding(.horizontal, 2)
+                },
+                background: Color.white,
+                foreground: Color(red: 0.25, green: 0.17, blue: 0),
+                borderColor: Color(hex: "FFE0A5"),
+                cornerRadius: 8,
+                horizontalPadding: 12,
+                verticalPadding: 7,
+                showOverlayStroke: true
+              )
+              .disabled(viewModel.isOutputLanguageOverrideSaved)
+              DayflowSurfaceButton(
+                action: {
+                  viewModel.resetOutputLanguageOverride()
+                  isOutputLanguageFocused = false
+                },
+                content: {
+                  Text("Reset")
+                    .font(.custom("Nunito", size: 11))
+                },
+                background: Color.white,
+                foreground: Color(red: 0.25, green: 0.17, blue: 0),
+                borderColor: Color(hex: "FFE0A5"),
+                cornerRadius: 8,
+                horizontalPadding: 10,
+                verticalPadding: 6,
+                showOverlayStroke: true
+              )
+            }
+            Text(
+              "The default language is English. You can specify any language here (examples: English, 简体中文, Español, 日本語, 한국어, Français)."
             )
-        ) {
-          SettingsToggle(isOn: $viewModel.showDailyGoalPopups)
+            .font(.custom("Nunito", size: 11.5))
+            .foregroundColor(.black.opacity(0.5))
+            .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Text(
+            "Dayflow v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")"
+          )
+          .font(.custom("Nunito", size: 12))
+          .foregroundColor(.black.opacity(0.45))
         }
-
-        SettingsRow(
-          label: String(localized: "Save all timelapses to disk"),
-          subtitle:
-            String(
-              localized:
-                "New and reprocessed timeline cards will pre-generate timelapse videos and store them on disk instead of building them on demand. Uses more storage and background processing."
-            ),
-          showsDivider: false
-        ) {
-          SettingsToggle(isOn: $viewModel.saveAllTimelapsesToDisk)
-        }
-      }
-    }
-  }
-
-  // MARK: - Output language override
-
-  private var outputLanguageSection: some View {
-    SettingsSection(
-      title: String(localized: "Output language override"),
-      subtitle:
-        String(
-          localized:
-            "AI output follows the app language by default. Enter a language to override it, or reset to follow the app language. Existing summaries stay unchanged."
-        )
-    ) {
-      HStack(spacing: 10) {
-        TextField("App language", text: $viewModel.outputLanguageOverride)
-          .textFieldStyle(.roundedBorder)
-          .disableAutocorrection(true)
-          .frame(maxWidth: 220)
-          .focused($isOutputLanguageFocused)
-          .onChange(of: viewModel.outputLanguageOverride) {
-            viewModel.markOutputLanguageOverrideEdited()
-          }
-
-        SettingsSecondaryButton(
-          title: viewModel.isOutputLanguageOverrideSaved
-            ? String(localized: "Saved") : String(localized: "Save"),
-          systemImage: viewModel.isOutputLanguageOverrideSaved
-            ? "checkmark" : nil,
-          isDisabled: viewModel.isOutputLanguageOverrideSaved,
-          action: {
-            viewModel.saveOutputLanguageOverride()
-            isOutputLanguageFocused = false
-          }
-        )
-
-        SettingsSecondaryButton(
-          title: String(localized: "Reset"),
-          action: {
-            viewModel.resetOutputLanguageOverride()
-            isOutputLanguageFocused = false
-          }
-        )
-
-        Spacer()
       }
     }
   }

@@ -1,0 +1,1862 @@
+{
+  "Dayflow/Dayflow/App/AppDeepLinkRouter.swift": {
+    "mtime": 1786763735.338367,
+    "seen": 1787769884.169806,
+    "ast_hash": "fd7070d84813b0ff75db640679b26592",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/App/AppDelegate.swift": {
+    "mtime": 1786763735.3445084,
+    "seen": 1787769884.1698089,
+    "ast_hash": "aaf99de44018796aab7e44ea03c2ce44",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/App/AppState.swift": {
+    "mtime": 1786763735.3512511,
+    "seen": 1787769884.1698098,
+    "ast_hash": "3211925eca59331416a2c978e1c4cc5c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/App/DayflowApp.swift": {
+    "mtime": 1786763735.3545942,
+    "seen": 1787769884.169811,
+    "ast_hash": "478c2743bc97c5973f0acd4c2da09b48",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/App/InactivityMonitor.swift": {
+    "mtime": 1772810234.471238,
+    "seen": 1787769884.169811,
+    "ast_hash": "592bad109ab51140a5ca5faf5ec1ae83",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/App/MainWindowContent.swift": {
+    "mtime": 1786763735.3554976,
+    "seen": 1787769884.169812,
+    "ast_hash": "6a64552b07c9438cc58e9e0126d7578c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/App/PauseManager.swift": {
+    "mtime": 1786763735.3586695,
+    "seen": 1787769884.169812,
+    "ast_hash": "d1e97182d156204d1bec9b52b8bd92cf",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/ChatCLIPromptPreferences.swift": {
+    "mtime": 1786763735.5737882,
+    "seen": 1787769884.169812,
+    "ast_hash": "2f251109978be29fbc4a1ff9cd7ae52f",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/ChatCLIProvider.swift": {
+    "mtime": 1786763735.5849493,
+    "seen": 1787769884.169813,
+    "ast_hash": "435fb66427f212b21b4bbab5db3d633e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/ChatCLIRunner.swift": {
+    "mtime": 1786763735.5917406,
+    "seen": 1787769884.169813,
+    "ast_hash": "43e1f7f44287f0699280bc721159cdb6",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/ChatService.swift": {
+    "mtime": 1786763735.6008048,
+    "seen": 1787769884.169813,
+    "ast_hash": "0b62839ae418fdae620fa8cb6674b8dc",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/ChatToolExecutor.swift": {
+    "mtime": 1772810234.475517,
+    "seen": 1787769884.169814,
+    "ast_hash": "a42ec0a2a99a8bd27eac50fcaad639e9",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/DailyRecapScheduler.swift": {
+    "mtime": 1786763735.6099098,
+    "seen": 1787769884.169814,
+    "ast_hash": "22c5a04b8046f24cf3f938227d9e63e6",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/DashboardChatMemoryStore.swift": {
+    "mtime": 1772810234.475724,
+    "seen": 1787769884.169814,
+    "ast_hash": "73b383317d6f5d63c7b8573f5bb62d14",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/DayflowBackendProvider.swift": {
+    "mtime": 1786763735.6111693,
+    "seen": 1787769884.169815,
+    "ast_hash": "ce7b6b33e3f54b91b7b6bf8b446e3417",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/GeminiDirectProvider.swift": {
+    "mtime": 1786763735.612572,
+    "seen": 1787769884.169815,
+    "ast_hash": "052f17aaa72b9380ce5dd1d331ad6b31",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/GeminiModelPreference.swift": {
+    "mtime": 1786763735.6134772,
+    "seen": 1787769884.169815,
+    "ast_hash": "4bc53ae8619273514fcbfc8a6e843b0a",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/GeminiPromptPreferences.swift": {
+    "mtime": 1772810234.4765959,
+    "seen": 1787769884.169816,
+    "ast_hash": "e8f9e3cef3156767add6afb658a4bb0c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/GemmaBackupProvider.swift": {
+    "mtime": 1786763735.6163116,
+    "seen": 1787769884.169816,
+    "ast_hash": "801853b1772b4cda3ced57af5415ad82",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/LLMLogger.swift": {
+    "mtime": 1786763735.6180274,
+    "seen": 1787769884.169816,
+    "ast_hash": "c6993e433bed06fa64a2136315368571",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/LLMOutputLanguagePreferences.swift": {
+    "mtime": 1772810234.477365,
+    "seen": 1787769884.169817,
+    "ast_hash": "8f78dba5a92faff1a4d39897d7845591",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/LLMService.swift": {
+    "mtime": 1786763735.619574,
+    "seen": 1787769884.169817,
+    "ast_hash": "da0f65ec1241bf80c53601b2a34b9a5c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/LLMTypes.swift": {
+    "mtime": 1786613841.662813,
+    "seen": 1787769884.169817,
+    "ast_hash": "72ba78268d24801e97f3c7e8ea76eeb1",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/LocalEndpointUtilities.swift": {
+    "mtime": 1772810234.477804,
+    "seen": 1787769884.1698182,
+    "ast_hash": "be54b36bdfc188e10a71e667a07015d8",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/LocalEngine.swift": {
+    "mtime": 1772810234.4779012,
+    "seen": 1787769884.1698182,
+    "ast_hash": "e3268ac4160ca38828e7462364251065",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/LocalModelPreset.swift": {
+    "mtime": 1772810234.4783032,
+    "seen": 1787769884.1698182,
+    "ast_hash": "da444288f1d7dc68e21bd1f03f485038",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/OllamaPromptPreferences.swift": {
+    "mtime": 1772810234.4784403,
+    "seen": 1787769884.1698189,
+    "ast_hash": "fad85d6a704c495d19787364a7727442",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/AI/OllamaProvider.swift": {
+    "mtime": 1786763735.620595,
+    "seen": 1787769884.1698189,
+    "ast_hash": "a685503565b526e274468be2b4295987",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Analysis/AnalysisManager.swift": {
+    "mtime": 1786763735.623489,
+    "seen": 1787769884.1698189,
+    "ast_hash": "d93d375c8c7ead5b10c102fb42969212",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Analysis/TimeParsing.swift": {
+    "mtime": 1772810234.479493,
+    "seen": 1787769884.1698198,
+    "ast_hash": "0c61b50f27c5e8c8f484d1abaec48b95",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Net/FaviconService.swift": {
+    "mtime": 1786763735.6251383,
+    "seen": 1787769884.1698198,
+    "ast_hash": "d232e00b1dc59bb5f025bf6d4ac4342f",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Notifications/NotificationBadgeManager.swift": {
+    "mtime": 1786763735.625921,
+    "seen": 1787769884.1698198,
+    "ast_hash": "a69583670bc165ae9a5a7774e7eb8af4",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Notifications/NotificationPreferences.swift": {
+    "mtime": 1772810234.4798708,
+    "seen": 1787769884.169821,
+    "ast_hash": "ab3e033c03492937309afd40c7e5363d",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Notifications/NotificationService.swift": {
+    "mtime": 1786763735.6276963,
+    "seen": 1787769884.169821,
+    "ast_hash": "5c727788c57aa8cfcacb73e22b10bded",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Recording/ActiveDisplayTracker.swift": {
+    "mtime": 1772810234.4800987,
+    "seen": 1787769884.169821,
+    "ast_hash": "c169ca29bb5505bac9454ffa9d09c4c6",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Recording/JournalDayManager.swift": {
+    "mtime": 1772810234.4803364,
+    "seen": 1787769884.169822,
+    "ast_hash": "7c7b8f12ed9ab68a650a3b32077b391e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Recording/ScreenRecorder.swift": {
+    "mtime": 1786763735.6302896,
+    "seen": 1787769884.169822,
+    "ast_hash": "e6d01beb5dcf1d18902c65f111f9be02",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Recording/StorageManager.swift": {
+    "mtime": 1786763735.6325545,
+    "seen": 1787769884.169822,
+    "ast_hash": "b08ebf9ebc4b3f83b1e501fd381f82ef",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Recording/StoragePreferences.swift": {
+    "mtime": 1772810234.4809496,
+    "seen": 1787769884.169823,
+    "ast_hash": "e25ef3311cce335469f6fbc3b056bf1f",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Recording/TimelapseStorageManager.swift": {
+    "mtime": 1772810234.4810505,
+    "seen": 1787769884.169823,
+    "ast_hash": "6d197cd3098e245ffce201b2c1177414",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Recording/VideoProcessingService.swift": {
+    "mtime": 1786763735.6339455,
+    "seen": 1787769884.169823,
+    "ast_hash": "5201aab0cb63553572bea3f7e0357ff1",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Security/KeychainManager.swift": {
+    "mtime": 1786763735.6346796,
+    "seen": 1787769884.169823,
+    "ast_hash": "fd25e73e1fbc58b8056f83d749e6be90",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Thumbnails/ScreenshotThumbnailCache.swift": {
+    "mtime": 1786763735.6354206,
+    "seen": 1787769884.169824,
+    "ast_hash": "8146fd8f97e0ec1c0a06e52dfc1f5997",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Core/Thumbnails/ThumbnailCache.swift": {
+    "mtime": 1772810234.4820304,
+    "seen": 1787769884.169824,
+    "ast_hash": "12fe51e34137949b10001a83b190ff8e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Menu/StatusMenuView.swift": {
+    "mtime": 1786763735.6386018,
+    "seen": 1787769884.169824,
+    "ast_hash": "f1cbf6baf3d070fb2589fe347b268d26",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Models/AnalysisModels.swift": {
+    "mtime": 1772810234.4827614,
+    "seen": 1787769884.169825,
+    "ast_hash": "3a500b372f67a0ce34efd77941b8be95",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Models/ChatMessage.swift": {
+    "mtime": 1786763735.6393974,
+    "seen": 1787769884.169825,
+    "ast_hash": "7efe4c149eef44f4c05afd440b572e99",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Models/TimelineCategory.swift": {
+    "mtime": 1786763735.6406636,
+    "seen": 1787769884.169825,
+    "ast_hash": "292e35bf6ae292fdd0f2cefaaa2d0e73",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/System/AnalyticsService.swift": {
+    "mtime": 1786763735.6413662,
+    "seen": 1787769884.169826,
+    "ast_hash": "fd7ac46ffd1b59b334d51f8e467e79aa",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/System/LaunchAtLoginManager.swift": {
+    "mtime": 1772810234.483646,
+    "seen": 1787769884.169826,
+    "ast_hash": "1a293a341746377bbc494adb76b0e74e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/System/MainWindowManager.swift": {
+    "mtime": 1786763735.6421578,
+    "seen": 1787769884.169826,
+    "ast_hash": "2d37472bcf77c174d8330893197c3cf8",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/System/SilentUserDriver.swift": {
+    "mtime": 1772810234.483792,
+    "seen": 1787769884.169826,
+    "ast_hash": "ced53331746687949bea622a5008e5b3",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/System/StatusBarController.swift": {
+    "mtime": 1786763735.642984,
+    "seen": 1787769884.169827,
+    "ast_hash": "05677974d04d664c0d627c8360fde987",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/System/TimelineFailureToast.swift": {
+    "mtime": 1786763735.6437483,
+    "seen": 1787769884.169827,
+    "ast_hash": "314bef2243f5ad3cde946c4fd3503d62",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/System/UpdaterManager.swift": {
+    "mtime": 1786613842.452985,
+    "seen": 1787769884.169827,
+    "ast_hash": "145e9df3f10aae6eb5e37438bb10ce99",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/AutoDailyReportService.swift": {
+    "mtime": 1787769773.5989974,
+    "seen": 1787769884.1698282,
+    "ast_hash": "7a1057b396241812b61b3b609ce72e86",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/AutoDailyReportSettings.swift": {
+    "mtime": 1786613291.722904,
+    "seen": 1787769884.1698282,
+    "ast_hash": "e8992a5608ec29128552785b010aa804",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/Color+Luminance.swift": {
+    "mtime": 1786763735.6457987,
+    "seen": 1787769884.1698282,
+    "ast_hash": "b24292b78e08fffc7b8b8287f81953bf",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/DebugLogFormatter.swift": {
+    "mtime": 1772810234.4851139,
+    "seen": 1787769884.1698291,
+    "ast_hash": "fd1b6acaf5c7ddf8f0aa9be472d66e69",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/GeminiAPIHelper.swift": {
+    "mtime": 1786763735.6465123,
+    "seen": 1787769884.1698291,
+    "ast_hash": "067b943498ba1443c6605d1ca2c274fc",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/JournalCoordinator.swift": {
+    "mtime": 1786613291.7230217,
+    "seen": 1787769884.1698291,
+    "ast_hash": "26ce61799f3a7187076379d123149cc8",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/ObsidianExportSettings.swift": {
+    "mtime": 1787769806.829161,
+    "seen": 1787769884.1698298,
+    "ast_hash": "1049d25642adc114736890e00a7a3232",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/ObsidianExporter.swift": {
+    "mtime": 1787746888.6460698,
+    "seen": 1787769884.1698298,
+    "ast_hash": "25085183d849ce94e028b82206afcab8",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/SentryHelper.swift": {
+    "mtime": 1786763735.6472416,
+    "seen": 1787769884.1698308,
+    "ast_hash": "7b7d7b3677e269e499fffe0078605b2c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/StoragePathMigrator.swift": {
+    "mtime": 1772810234.485609,
+    "seen": 1787769884.169832,
+    "ast_hash": "5d705a9e22e7a560a31c361b43945c08",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/TimelineClipboardFormatter.swift": {
+    "mtime": 1786763735.6477482,
+    "seen": 1787769884.169832,
+    "ast_hash": "25a2e6668a7fd4a8525f736f42a7a440",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/UserDefaultsMigrator.swift": {
+    "mtime": 1772810234.4858274,
+    "seen": 1787769884.169832,
+    "ast_hash": "e0d1c985cfceed4394e3e14cdfad6be5",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/CardsToReviewBadge.swift": {
+    "mtime": 1786763735.648775,
+    "seen": 1787769884.169833,
+    "ast_hash": "ec0d2b65619f0cbefa1bb57c1845bc4a",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/CategoryDonutChart.swift": {
+    "mtime": 1786763735.6500342,
+    "seen": 1787769884.169833,
+    "ast_hash": "7e556c91b5be59d67ddb35b2930f2717",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/CategoryPickerOverlay.swift": {
+    "mtime": 1786763735.6509542,
+    "seen": 1787769884.169833,
+    "ast_hash": "bd19462ff19ac544d34e2ae3588b412e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/CategoryPickerView.swift": {
+    "mtime": 1786763735.6518533,
+    "seen": 1787769884.169833,
+    "ast_hash": "45c9dbadf362eced49b809dfae13bc0a",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/CursorModifiers.swift": {
+    "mtime": 1786763735.652332,
+    "seen": 1787769884.169834,
+    "ast_hash": "31d9824b5ae8fd968b1f4918285694f4",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/DaySummaryView.swift": {
+    "mtime": 1786763735.6534498,
+    "seen": 1787769884.169834,
+    "ast_hash": "3c348100d1251c67a111fa99c3fee12d",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/DayflowButton.swift": {
+    "mtime": 1786763735.65435,
+    "seen": 1787769884.169834,
+    "ast_hash": "a2287e20e4e787ac85e5c8837e7b645f",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/DayflowSurfaceButton.swift": {
+    "mtime": 1786763735.654905,
+    "seen": 1787769884.169835,
+    "ast_hash": "1ca4fb821b7acc5289ab6610d81e59de",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/DistractionSummaryCard.swift": {
+    "mtime": 1786763735.6557062,
+    "seen": 1787769884.169835,
+    "ast_hash": "7f3287619295b50a25130d2a90bfcfc8",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/LogoBadgeView.swift": {
+    "mtime": 1786763735.6563227,
+    "seen": 1787769884.169835,
+    "ast_hash": "0e08ecd809ace76bbdd76e0c7acb3861",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/LongestFocusCard.swift": {
+    "mtime": 1786763735.6581795,
+    "seen": 1787769884.169835,
+    "ast_hash": "1c48fe88c5d552d4bf5044722b20e17b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/ProviderCardComponents.swift": {
+    "mtime": 1786763735.661847,
+    "seen": 1787769884.169836,
+    "ast_hash": "fe15a5a9a6fd96069bbd441282ded933",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/ReferralSurveyView.swift": {
+    "mtime": 1786763735.662496,
+    "seen": 1787769884.169836,
+    "ast_hash": "4f294de2eb9109f0bc973c7d4ee63d73",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/ScrollTrackingModifier.swift": {
+    "mtime": 1772810234.4881194,
+    "seen": 1787769884.169836,
+    "ast_hash": "e5f3e70f7902770599cc0cb2b5e1f616",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/SplashWindow.swift": {
+    "mtime": 1786763735.6630523,
+    "seen": 1787769884.169837,
+    "ast_hash": "5c572ed9ca415bf588da8fd6d98543da",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/TimelineCardColorPicker.swift": {
+    "mtime": 1786763735.6636362,
+    "seen": 1787769884.169837,
+    "ast_hash": "a1bb93fd3e4b0fef75f8e3d6fcd759ba",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/TimelineReviewSummaryCard.swift": {
+    "mtime": 1786763735.6641374,
+    "seen": 1787769884.169837,
+    "ast_hash": "93e1d920947c26b96a148bdc239ff58c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/ToolCallBubble.swift": {
+    "mtime": 1786763735.6647437,
+    "seen": 1787769884.1698382,
+    "ast_hash": "b6925dd65a8a77a222b1fb26a39630fb",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Components/WrappingHStack.swift": {
+    "mtime": 1772810234.48888,
+    "seen": 1787769884.1698382,
+    "ast_hash": "b0ecbb57939e95a4b2d462ade0490a13",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/APIKeyInputView.swift": {
+    "mtime": 1786763735.6654506,
+    "seen": 1787769884.1698382,
+    "ast_hash": "115b6c34eb041be577651d2527c7ee13",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/HowItWorksCard.swift": {
+    "mtime": 1786763735.66605,
+    "seen": 1787769884.1698391,
+    "ast_hash": "43428b4ff2ae368900d0342397f89702",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/HowItWorksView.swift": {
+    "mtime": 1786763735.6666358,
+    "seen": 1787769884.1698391,
+    "ast_hash": "13c75503e6e7f2f6425348de3acfc748",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/LLMProviderSetupView.swift": {
+    "mtime": 1786763735.6678326,
+    "seen": 1787769884.1698391,
+    "ast_hash": "c745926f7f0c29295b8c1c35bf1ed97e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/OnboardingFlow.swift": {
+    "mtime": 1786763735.6691604,
+    "seen": 1787769884.1698391,
+    "ast_hash": "6dbf1068d29ac79466ed3a0b0f43da6b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/OnboardingLLMSelectionView.swift": {
+    "mtime": 1786613842.5979097,
+    "seen": 1787769884.16984,
+    "ast_hash": "27deb1f080db2630df71c7c02ba5bdc3",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/ScreenRecordingPermissionView.swift": {
+    "mtime": 1786763735.670599,
+    "seen": 1787769884.16984,
+    "ast_hash": "d13c411745b2dd60897aa0a9ebec04d7",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/SetupContinueButton.swift": {
+    "mtime": 1786763735.6714432,
+    "seen": 1787769884.16984,
+    "ast_hash": "4cd9ec47a3b4e5a2fce17be7d7efa985",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/SetupSidebarView.swift": {
+    "mtime": 1786763735.6718996,
+    "seen": 1787769884.1698408,
+    "ast_hash": "7a1cadf8daeabee5ed980878803c1edc",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/TerminalCommandView.swift": {
+    "mtime": 1786763735.6737347,
+    "seen": 1787769884.1698408,
+    "ast_hash": "f6778bc1d94494b136aae77b8d04a2e6",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/TestConnectionView.swift": {
+    "mtime": 1786763735.6750112,
+    "seen": 1787769884.1698408,
+    "ast_hash": "70271244a1e503d906fb5d030c1a3244",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/Onboarding/VideoLaunchView.swift": {
+    "mtime": 1786763735.6756275,
+    "seen": 1787769884.169842,
+    "ast_hash": "a0a49f9d4a87a0b330a0193133bb3092",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/BugReportView.swift": {
+    "mtime": 1786763735.6770363,
+    "seen": 1787769884.169842,
+    "ast_hash": "e299691a563c1f5cfeabad1299c42602",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/CanvasTimelineDataView.swift": {
+    "mtime": 1786763735.6856744,
+    "seen": 1787769884.169842,
+    "ast_hash": "535393b403d7a0ad9f2d3c21dbf39d0f",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/ChatPanelView.swift": {
+    "mtime": 1772810234.491423,
+    "seen": 1787769884.169843,
+    "ast_hash": "024f6208965d0f6aa4c6832ed527923d",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/ChatView.swift": {
+    "mtime": 1786763735.6907763,
+    "seen": 1787769884.169843,
+    "ast_hash": "00fb13b2392617d665ea003d25d9b4dd",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/DailyView.swift": {
+    "mtime": 1786763735.6965752,
+    "seen": 1787769884.169843,
+    "ast_hash": "5a631ee324ae7f369dd92fed5bd89733",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/DayflowUIStyles.swift": {
+    "mtime": 1786763735.7023225,
+    "seen": 1787769884.169843,
+    "ast_hash": "496e0216fb63b6e933e250148c38882a",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/JournalDayView.swift": {
+    "mtime": 1786763735.704568,
+    "seen": 1787769884.169844,
+    "ast_hash": "61726a5917e42addb5ad934b5564524b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/JournalHeroView.swift": {
+    "mtime": 1786763735.7097404,
+    "seen": 1787769884.169844,
+    "ast_hash": "4d3bfd155a56ea9418f41796d68bee4d",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/JournalOnboardingVideoView.swift": {
+    "mtime": 1786613291.7261467,
+    "seen": 1787769884.169844,
+    "ast_hash": "1b5ec72828abb257d9a40ddc7247a547",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/JournalReminders.swift": {
+    "mtime": 1786763735.7125163,
+    "seen": 1787769884.169845,
+    "ast_hash": "55ef6a21d490a8dbb2537fc7ca97a1c5",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/JournalView.swift": {
+    "mtime": 1786613842.7525816,
+    "seen": 1787769884.169845,
+    "ast_hash": "be1641b92233b8612869b80aeab8ccda",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/JournalWeeklyView.swift": {
+    "mtime": 1786763735.722547,
+    "seen": 1787769884.169845,
+    "ast_hash": "15c5e4b626784aa4a087f249971c56aa",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/MainView/Actions.swift": {
+    "mtime": 1786763735.7280147,
+    "seen": 1787769884.169846,
+    "ast_hash": "6def14311dc57c1b0a2cdcc69f749157",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/MainView/ActivityCard.swift": {
+    "mtime": 1786763735.729306,
+    "seen": 1787769884.169846,
+    "ast_hash": "f15c2bd82f5088f4b5e1040d92b88355",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/MainView/DateNavigationControls.swift": {
+    "mtime": 1786763735.7301538,
+    "seen": 1787769884.169846,
+    "ast_hash": "e94a4a9b818bca6afef4167cd2171d43",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/MainView/Layout.swift": {
+    "mtime": 1786613842.8591757,
+    "seen": 1787769884.169847,
+    "ast_hash": "e0aab1dac11a49b2a7fde445c0998962",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/MainView/Lifecycle.swift": {
+    "mtime": 1786763735.7366936,
+    "seen": 1787769884.169847,
+    "ast_hash": "c4cd0cce9656f08b1baf37bc560952a9",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/MainView/MainView.swift": {
+    "mtime": 1786613842.906827,
+    "seen": 1787769884.169847,
+    "ast_hash": "2ff59347298f59991ff2e89a4702b3ac",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/MainView/SidebarView.swift": {
+    "mtime": 1786763735.737641,
+    "seen": 1787769884.169848,
+    "ast_hash": "9a5f080c54a1518151ad4fb25bbe5e5e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/MainView/Support.swift": {
+    "mtime": 1786763735.7426884,
+    "seen": 1787769884.169848,
+    "ast_hash": "472ab1c52acd7675f29bf609fe82399f",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/MainView/TabFilterBar.swift": {
+    "mtime": 1786763735.7440126,
+    "seen": 1787769884.169848,
+    "ast_hash": "79ea64d3fe963a77c62cda33331e62fe",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/RetryCoordinator.swift": {
+    "mtime": 1786763735.7447045,
+    "seen": 1787769884.1698492,
+    "ast_hash": "f83f08da160954916065f6b031722b69",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/ScrubberView.swift": {
+    "mtime": 1772810234.4947548,
+    "seen": 1787769884.1698492,
+    "ast_hash": "4c7bb620bedda2412bf035abd3aa7472",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/Settings/OtherSettingsViewModel.swift": {
+    "mtime": 1786763735.7461221,
+    "seen": 1787769884.1698492,
+    "ast_hash": "1d37e4bcf1773a12ff9bd8725245866a",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/Settings/ProvidersSettingsViewModel.swift": {
+    "mtime": 1786613842.9615948,
+    "seen": 1787769884.16985,
+    "ast_hash": "06f717ec5f29e783f41af2a03a1a07e5",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/Settings/SettingsComponents.swift": {
+    "mtime": 1786763735.7500532,
+    "seen": 1787769884.16985,
+    "ast_hash": "3561f5a795fc762fdbe7c7b5583ff8e6",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/Settings/SettingsDataTabView.swift": {
+    "mtime": 1786763735.7513227,
+    "seen": 1787769884.16985,
+    "ast_hash": "c90d74b34e26120262fc5669269ff494",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/Settings/SettingsObsidianTabView.swift": {
+    "mtime": 1787769760.2930279,
+    "seen": 1787769884.1698508,
+    "ast_hash": "e71f4385f45d8995b72f2641be6f6e97",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/Settings/SettingsOtherTabView.swift": {
+    "mtime": 1786763735.7519932,
+    "seen": 1787769884.1698508,
+    "ast_hash": "4a0c96e11e3e9f15e0853764d1f155e1",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/Settings/SettingsProvidersTabView.swift": {
+    "mtime": 1786763735.7532876,
+    "seen": 1787769884.1698508,
+    "ast_hash": "3bb3c9dbfb532c6a922c8d74f368a444",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/Settings/SettingsStorageTabView.swift": {
+    "mtime": 1786763735.7755253,
+    "seen": 1787769884.169852,
+    "ast_hash": "7afb63ecf6592dac137379e6d8864410",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/Settings/StorageSettingsViewModel.swift": {
+    "mtime": 1772810234.496143,
+    "seen": 1787769884.169852,
+    "ast_hash": "70d42f6d64a6224ec9e9773cb915a2e9",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/SettingsView.swift": {
+    "mtime": 1786763735.7835522,
+    "seen": 1787769884.169852,
+    "ast_hash": "a9fbe09b6324b1c0c9d5539e0476d83d",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/SunriseGlassPillToggleStyle.swift": {
+    "mtime": 1786613291.7293751,
+    "seen": 1787769884.169853,
+    "ast_hash": "63b4fb50bd435861ba0226b3696877e7",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/TimelineDataModels.swift": {
+    "mtime": 1786763735.7935064,
+    "seen": 1787769884.169853,
+    "ast_hash": "9a2371d3e23f90454d8684fc6569d2fe",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/TimelineFeedbackModal.swift": {
+    "mtime": 1786763735.7989802,
+    "seen": 1787769884.169853,
+    "ast_hash": "89a70b6ff66df91f1da7898cb42475e4",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/TimelineRateSummaryView.swift": {
+    "mtime": 1786763735.8014944,
+    "seen": 1787769884.169854,
+    "ast_hash": "d78c91f385300e5b79d1a1f7b0358500",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/TimelineReviewOverlay.swift": {
+    "mtime": 1786763735.805345,
+    "seen": 1787769884.169854,
+    "ast_hash": "93d26be7a1fb5fa5a42f1c16a18f4531",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/TimelineThinkingSpinner.swift": {
+    "mtime": 1786763735.8200927,
+    "seen": 1787769884.169854,
+    "ast_hash": "30cb5c65c9a2258c9e7cb01307754891",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/VideoPlayerModal.swift": {
+    "mtime": 1786763735.8849483,
+    "seen": 1787769884.169854,
+    "ast_hash": "fa35d712089c80d75806f21a6c7a92ba",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/VideoThumbnailView.swift": {
+    "mtime": 1772810234.4974186,
+    "seen": 1787769884.1698549,
+    "ast_hash": "6c6864d7face2fe5cde05fca352f594b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/WhatsNewView.swift": {
+    "mtime": 1786763735.936462,
+    "seen": 1787769884.1698549,
+    "ast_hash": "a88f874135cfdab93dc1e2ca33a033e3",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/WhiteBGVideoPlayer.swift": {
+    "mtime": 1786763735.9553924,
+    "seen": 1787769884.1698549,
+    "ast_hash": "25567e252c06a104b05e317b8d326db5",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Views/UI/WindowSizeReader.swift": {
+    "mtime": 1772810234.4977584,
+    "seen": 1787769884.169856,
+    "ast_hash": "2bcfb7e0114cefaafbfab04b8cc16bf2",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/AgentWriteHandlersTests.swift": {
+    "mtime": 1786565535.0511982,
+    "seen": 1787769884.169856,
+    "ast_hash": "a8e6bd8ea478d5f0234b3d359601efbf",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/ClaudeActivityCardBoundaryTests.swift": {
+    "mtime": 1786565535.0513132,
+    "seen": 1787769884.169856,
+    "ast_hash": "4afbe5ec1ad9a602298af064924e2381",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/ClaudeCLIExecutionProfileTests.swift": {
+    "mtime": 1786565535.0514638,
+    "seen": 1787769884.169857,
+    "ast_hash": "7b5738e8692075abdf6dbe696daf7bea",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/ClaudeTranscriptionInputBuilderTests.swift": {
+    "mtime": 1786565535.0516286,
+    "seen": 1787769884.169857,
+    "ast_hash": "3e464d0f40062d7b1f180ba7a31f8ab6",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/CodexClaudeProviderTests.swift": {
+    "mtime": 1786565535.0517883,
+    "seen": 1787769884.169857,
+    "ast_hash": "53ad7b19c3fc134e05dcaaa6465ff505",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/CodexExecutableResolverTests.swift": {
+    "mtime": 1786565535.0520706,
+    "seen": 1787769884.169858,
+    "ast_hash": "d5b9516a48d776a06f6e006b343b2285",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/DaySummaryLoadTokenTests.swift": {
+    "mtime": 1786565535.0521884,
+    "seen": 1787769884.169858,
+    "ast_hash": "ddd39063961f7fbf25f26ea3cc6704c2",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/GeminiAPIHelperTests.swift": {
+    "mtime": 1786565535.0522857,
+    "seen": 1787769884.169858,
+    "ast_hash": "93207b4460f7a5f0d8766b6c060d8d73",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/LLMProviderRoutingTests.swift": {
+    "mtime": 1786565535.052394,
+    "seen": 1787769884.169858,
+    "ast_hash": "91f98a705991fec77b118ae2418eece4",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/ObsidianVaultExportDestinationTests.swift": {
+    "mtime": 1787769686.1583376,
+    "seen": 1787769884.1698592,
+    "ast_hash": "8f3ae535c9795eacb5b586639aae527c",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/OpenAICompatibleConfigurationTests.swift": {
+    "mtime": 1786565535.052548,
+    "seen": 1787769884.1698592,
+    "ast_hash": "11b5d712455cd1999b44447b18268068",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/ProviderPromptPreferencesTests.swift": {
+    "mtime": 1786565535.0528173,
+    "seen": 1787769884.1698601,
+    "ast_hash": "522aeb465e917bc72466090112c528af",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/ProvidersSettingsViewModelTests.swift": {
+    "mtime": 1786565535.0529537,
+    "seen": 1787769884.1698601,
+    "ast_hash": "90e5a4aa68482bd67c44af6146af8d80",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/TimeParsingTests.swift": {
+    "mtime": 1766444448.0,
+    "seen": 1787769884.1698601,
+    "ast_hash": "8b099f445b05ead21aa99ef2a40fae84",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/TimelineActivityLoaderTests.swift": {
+    "mtime": 1786565535.0530355,
+    "seen": 1787769884.169861,
+    "ast_hash": "139b51d7e21d61baaeccd64f6e372a7a",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowTests/WeeklyDashboardBuilderTests.swift": {
+    "mtime": 1786565535.0531585,
+    "seen": 1787769884.169861,
+    "ast_hash": "c48d3c7ed3bfc0021893be32a2db2dd7",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowUITests/DayflowUITests.swift": {
+    "mtime": 1771160115.9014478,
+    "seen": 1787769884.169861,
+    "ast_hash": "693b0bc57d543114fb0e1971a7cd0403",
+    "semantic_hash": ""
+  },
+  "Dayflow/DayflowUITests/DayflowUITestsLaunchTests.swift": {
+    "mtime": 1771160115.9015956,
+    "seen": 1787769884.169861,
+    "ast_hash": "518c948d18fa823f8ff131f6d3b82a07",
+    "semantic_hash": ""
+  },
+  "DayflowTests/ChatCLIProcessRunnerTests.swift": {
+    "mtime": 1786565535.0533862,
+    "seen": 1787769884.1698618,
+    "ast_hash": "dca47a4e89f3af7403551e3731c27b6b",
+    "semantic_hash": ""
+  },
+  "DayflowTests/DailyRecapGeneratorTests.swift": {
+    "mtime": 1786565535.0535219,
+    "seen": 1787769884.1698618,
+    "ast_hash": "40a8350776a078fe575fc2c932ebdcc9",
+    "semantic_hash": ""
+  },
+  "scripts/make_appcast.sh": {
+    "mtime": 1786613291.7301314,
+    "seen": 1787769884.169863,
+    "ast_hash": "1b5de1740a2665aae7a43bea700c5e88",
+    "semantic_hash": ""
+  },
+  "scripts/release.sh": {
+    "mtime": 1786613291.7307014,
+    "seen": 1787769884.169863,
+    "ast_hash": "0fe8ed28e05bb883cc982fcde6d23216",
+    "semantic_hash": ""
+  },
+  "scripts/release_dmg.sh": {
+    "mtime": 1786613843.1765008,
+    "seen": 1787769884.169863,
+    "ast_hash": "3c405229fbfbe625781266d3d8132862",
+    "semantic_hash": ""
+  },
+  "scripts/sparkle_sign_from_keychain.sh": {
+    "mtime": 1786613291.7311463,
+    "seen": 1787769884.169864,
+    "ast_hash": "2c41f79d6f4e1af2b4effbc04314cfc5",
+    "semantic_hash": ""
+  },
+  "scripts/update_appcast.sh": {
+    "mtime": 1786613291.7313354,
+    "seen": 1787769884.169864,
+    "ast_hash": "b23a55ac85c990eb798caac6e8ff08d6",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Package.swift": {
+    "mtime": 1786565535.1139061,
+    "seen": 1787769884.169864,
+    "ast_hash": "79433a2e85feb685825adad5964842d1",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Sources/dayflow/Bridge.swift": {
+    "mtime": 1786565535.114224,
+    "seen": 1787769884.169865,
+    "ast_hash": "be983b10bf12fe83b917ef5e782b9dfa",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Sources/dayflow/Categories.swift": {
+    "mtime": 1786565535.114325,
+    "seen": 1787769884.169865,
+    "ast_hash": "4f248276c5becd7a36f51003adf2dce5",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Sources/dayflow/Database.swift": {
+    "mtime": 1786565535.1144536,
+    "seen": 1787769884.169865,
+    "ast_hash": "9e2d1dbad00430e867d369ab4496b21a",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Sources/dayflow/DayBoundary.swift": {
+    "mtime": 1786565535.114542,
+    "seen": 1787769884.169866,
+    "ast_hash": "117e068b41ab0ec70cf37037972e9c85",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Sources/dayflow/JSONOut.swift": {
+    "mtime": 1786565535.1147065,
+    "seen": 1787769884.169866,
+    "ast_hash": "c15849b35f54d112559f89a08ecbda7d",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Sources/dayflow/MCPServer.swift": {
+    "mtime": 1786565535.114925,
+    "seen": 1787769884.169866,
+    "ast_hash": "107e6611a5ec4097578accdff160644f",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Sources/dayflow/Queries.swift": {
+    "mtime": 1786565535.1151178,
+    "seen": 1787769884.169866,
+    "ast_hash": "2ac9e1846287110e80c9e8cc7102fbb7",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Sources/dayflow/Render.swift": {
+    "mtime": 1786565535.115267,
+    "seen": 1787769884.169867,
+    "ast_hash": "20cd762b67122b01f8878e94232aef6a",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Sources/dayflow/WriteCommands.swift": {
+    "mtime": 1786565535.1154258,
+    "seen": 1787769884.169867,
+    "ast_hash": "5d4cfeca5df0900a4dc5ed9156d390eb",
+    "semantic_hash": ""
+  },
+  "tools/dayflow-cli/Sources/dayflow/main.swift": {
+    "mtime": 1786565535.115538,
+    "seen": 1787769884.169867,
+    "ast_hash": "65d7302d2b4a96a44e3490c34bd549e8",
+    "semantic_hash": ""
+  },
+  ".github/ISSUE_TEMPLATE/bug_report.md": {
+    "mtime": 1771160115.839891,
+    "seen": 1787769884.169868,
+    "ast_hash": "f7c05ae612c71da340bc2a7409754b36",
+    "semantic_hash": ""
+  },
+  ".github/workflows/smart-fork-sync.yml": {
+    "mtime": 1786613291.7102873,
+    "seen": 1787769884.169868,
+    "ast_hash": "5db1341d6b41c795d9bde12a77ceb505",
+    "semantic_hash": ""
+  },
+  ".pi/agents/supervisor.md": {
+    "mtime": 1776620947.588798,
+    "seen": 1787769884.169868,
+    "ast_hash": "21da936a99ef4151eb0c05ce8ef167d1",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1771160115.9538302,
+    "seen": 1787769884.169869,
+    "ast_hash": "3c2bc9084108b705da429d379575b3aa",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/AnalyticsEventDictionary.md": {
+    "mtime": 1786763735.3278883,
+    "seen": 1787769884.169869,
+    "ast_hash": "ec583de0b80a061b87c1679277e102ee",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1786565535.054003,
+    "seen": 1787769884.169869,
+    "ast_hash": "fa4061a1b4bc11268353967019da978c",
+    "semantic_hash": ""
+  },
+  "Taskfile.yml": {
+    "mtime": 1786613291.7299745,
+    "seen": 1787769884.1698701,
+    "ast_hash": "e10ad99352970a1167d2db34537a48ee",
+    "semantic_hash": ""
+  },
+  "docs/images/README.md": {
+    "mtime": 1766444448.0,
+    "seen": 1787769884.1698701,
+    "ast_hash": "6ccad2dd77ef3dfdd1b7feac7bbba8bf",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/AgentsPreview.imageset/agents-preview.jpg": {
+    "mtime": 1786565534.9329343,
+    "seen": 1787769884.1698701,
+    "ast_hash": "aa8b1bf54b675b6c02b0ef23dea9c43e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/AppIcon.appiconset/Export me (512px) (7).png": {
+    "mtime": 1766444444.0,
+    "seen": 1787769884.169871,
+    "ast_hash": "5ebdb4631154a88c92438d5962b49903",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CalendarIcon.imageset/CalendarIcon.png": {
+    "mtime": 1786565534.9332788,
+    "seen": 1787769884.169871,
+    "ast_hash": "dcfeb57cc82a3dfec90dbd8aefb4628c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CalendarLeftButton.imageset/CalendarLeftButton.png": {
+    "mtime": 1771160115.841681,
+    "seen": 1787769884.1698718,
+    "ast_hash": "bad5d78f3527afcb207bbf73a67a7efc",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CalendarRightButton.imageset/CalendarRightButton.png": {
+    "mtime": 1771160115.8420205,
+    "seen": 1787769884.1698718,
+    "ast_hash": "1fc9697bc0af6156d543d1430200481a",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CategoriesCheckmark.imageset/CategoriesCheckmark.png": {
+    "mtime": 1771160115.8421626,
+    "seen": 1787769884.1698718,
+    "ast_hash": "098f5e9c043e40cd65e73a1bd5bef566",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CategoriesDelete.imageset/CategoriesDelete.png": {
+    "mtime": 1771160115.842413,
+    "seen": 1787769884.169873,
+    "ast_hash": "a97e913793f9943a29d8186697bbd69f",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CategoriesEdit.imageset/CategoriesEdit.png": {
+    "mtime": 1771160115.842548,
+    "seen": 1787769884.169873,
+    "ast_hash": "8a86425c39074b2a031098df038d4cec",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CategoriesOrganize.imageset/Organize.png": {
+    "mtime": 1771160115.8427777,
+    "seen": 1787769884.169873,
+    "ast_hash": "2a825cfa6f3289f4ae83ddfb5728fc7e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CategoriesTextSelect.imageset/TextSelect.png": {
+    "mtime": 1771160115.8429184,
+    "seen": 1787769884.169874,
+    "ast_hash": "e37f671a7b0f4cd1267932db0e2154e5",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CategoryEditButton.imageset/Edit Pencil.png": {
+    "mtime": 1786565534.93391,
+    "seen": 1787769884.169874,
+    "ast_hash": "eb1ce6822154bd5679b849f1d866e0ef",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CategoryEditButton.imageset/Edit2.png": {
+    "mtime": 1786763735.3663788,
+    "seen": 1787769884.169874,
+    "ast_hash": "7ff6643e17bf6b67581ac1d240781a9c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CategoryEditUI.imageset/b22a2e8c06f48789a749d483812b71ec6e5f0dcc.png": {
+    "mtime": 1771160115.8444636,
+    "seen": 1787769884.169875,
+    "ast_hash": "c3f14dab76020bea357aa838bb1a4ece",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/CategorySwapButton.imageset/CategorySwapButton.png": {
+    "mtime": 1771160115.8449764,
+    "seen": 1787769884.169875,
+    "ast_hash": "949bd24da7f41ba3b9e9d03cd249f583",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/ChatGPTLogo.imageset/ChatGPT.svg": {
+    "mtime": 1786763735.3739712,
+    "seen": 1787769884.169875,
+    "ast_hash": "216cd842c3cb73c921180513f8cb5b14",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/ChatIcon.imageset/Chat.svg": {
+    "mtime": 1772810234.4716253,
+    "seen": 1787769884.1698759,
+    "ast_hash": "b57102b512f8ab4e1f3398fb20624ab0",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/ClaudeLogo.imageset/Image.png": {
+    "mtime": 1771160115.8457048,
+    "seen": 1787769884.1698759,
+    "ast_hash": "eca672ea6ac889ca11789a5fa6fb3e5c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Copy.imageset/Content copy.svg": {
+    "mtime": 1772810234.4718497,
+    "seen": 1787769884.1698759,
+    "ast_hash": "295612feca07e1ae3b0ee69a77f8d97b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DailyIcon.imageset/Daily view.svg": {
+    "mtime": 1772810234.4721408,
+    "seen": 1787769884.169877,
+    "ast_hash": "d881924106dbdbdd60ee51d8ac776f2a",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DashboardIcon.imageset/DashboardIcon.png": {
+    "mtime": 1766444443.0,
+    "seen": 1787769884.169877,
+    "ast_hash": "68858156bd8155b0d32b889b81b6534e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DayGoalDistraction.imageset/DayGoalDistraction.png": {
+    "mtime": 1786565534.934479,
+    "seen": 1787769884.169877,
+    "ast_hash": "d7911c5421677e48a92741ec8217f498",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DayGoalFocus.imageset/DayGoalFocus.png": {
+    "mtime": 1786565534.9347734,
+    "seen": 1787769884.169878,
+    "ast_hash": "03eeb967498c54824299cdadbb6eb0f1",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Dayflow.imageset/Slide 16_9 - 82.png": {
+    "mtime": 1786763735.526373,
+    "seen": 1787769884.169878,
+    "ast_hash": "8bd64dd9bee371ab28eafdcd104b06fb",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DayflowLaunch.imageset/Frame 2147227827.png": {
+    "mtime": 1766444443.0,
+    "seen": 1787769884.169878,
+    "ast_hash": "2e5076891a2bea245e80211c771e642b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DayflowLogo.imageset/DayflowLogo.png": {
+    "mtime": 1786565534.9351354,
+    "seen": 1787769884.169879,
+    "ast_hash": "f153f0b0c127b52d52669c3b134bb100",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DayflowLogoMainApp.imageset/button (3).png": {
+    "mtime": 1786763735.5408626,
+    "seen": 1787769884.169879,
+    "ast_hash": "b9e50e58e7dc0655fc0cf99e9e06831b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DayflowLogoMainApp.imageset/in-app-logo2.png": {
+    "mtime": 1786565534.9357986,
+    "seen": 1787769884.169879,
+    "ast_hash": "e5bbb2467171ef9827a804e243011412",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DiscordGlyph.imageset/discord.png": {
+    "mtime": 1771160115.845882,
+    "seen": 1787769884.1698802,
+    "ast_hash": "51f03c71f4f30786f02ab843dedbce08",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DiscordGlyph.imageset/discord@2x.png": {
+    "mtime": 1771160115.8459458,
+    "seen": 1787769884.1698802,
+    "ast_hash": "55b83db157b53eba0a56304dc2af4f02",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DiscordGlyph.imageset/discord@3x.png": {
+    "mtime": 1771160115.8460565,
+    "seen": 1787769884.1698802,
+    "ast_hash": "3ab044bc52ff8654dcc538da16cc1eca",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DistractionSummaryIcon.imageset/distraction-icon.png": {
+    "mtime": 1771160115.8462074,
+    "seen": 1787769884.169881,
+    "ast_hash": "a2e1f2e64a7dd1702d6f4f252ce7c1fb",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/AppStoreFavicon.imageset/AppStore-Icon-Default@4x_1.png": {
+    "mtime": 1771160115.84634,
+    "seen": 1787769884.169881,
+    "ast_hash": "b509ef182da142afbd534c01a06e7527",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/BooksFavicon.imageset/Books@4x_1.png": {
+    "mtime": 1771160115.8465788,
+    "seen": 1787769884.169881,
+    "ast_hash": "94bc10a50c9193022a72fd861d665ed2",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/CalculatorFavicon.imageset/Calculator@4x_1.png": {
+    "mtime": 1771160115.846736,
+    "seen": 1787769884.169882,
+    "ast_hash": "05297331bd07e6c5d104d46f39ce920e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/CalendarFavicon.imageset/Calendar@4x_1.png": {
+    "mtime": 1771160115.846891,
+    "seen": 1787769884.169882,
+    "ast_hash": "c66ab1d6784c5121d5b8428140a5b81d",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/ChromeFavicon.imageset/Google_Chrome_icon_(February_2022).png": {
+    "mtime": 1771160115.8471022,
+    "seen": 1787769884.169882,
+    "ast_hash": "f507d097a42c14211ab37c13d5ba0c54",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/ClockFavicon.imageset/Clock@4x_1.png": {
+    "mtime": 1771160115.8473358,
+    "seen": 1787769884.1698828,
+    "ast_hash": "981a5adc34877b0b5ef1461ae5af7466",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/ContactsFavicon.imageset/Contacts@4x_1.png": {
+    "mtime": 1771160115.8475132,
+    "seen": 1787769884.1698828,
+    "ast_hash": "40a65c145ee842f11ee039764ace9ced",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/DayflowFavicon.imageset/686526ff709ed1c0181d0fed_favicon.png": {
+    "mtime": 1771160115.8477814,
+    "seen": 1787769884.1698828,
+    "ast_hash": "d471c239f3105c9f82548bb1a43c7b5c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/FaceTimeFavicon.imageset/FaceTime@4x_1.png": {
+    "mtime": 1771160115.8480005,
+    "seen": 1787769884.169884,
+    "ast_hash": "46d5f5d39fd21213ebc27e4e23e7c44b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/FilesFavicon.imageset/Files@4x_1.png": {
+    "mtime": 1771160115.8482785,
+    "seen": 1787769884.169884,
+    "ast_hash": "bdce696b636ec7bab04ebbb9c44e15fc",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/FindMyFavicon.imageset/Find_My@4x_1.png": {
+    "mtime": 1771160115.848458,
+    "seen": 1787769884.169884,
+    "ast_hash": "d4dace924b1323407b25daf7e31d517c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/FinderFavicon.imageset/Finder.png": {
+    "mtime": 1771160115.8490398,
+    "seen": 1787769884.169885,
+    "ast_hash": "9778a650c11237ccd86bb2777cb191e2",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/FitnessFavicon.imageset/Fitness@4x_1.png": {
+    "mtime": 1771160115.849216,
+    "seen": 1787769884.169885,
+    "ast_hash": "605730c183707198bb65847fb768f0fc",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/FreeformFavicon.imageset/Freeform@4x_1.png": {
+    "mtime": 1771160115.8493989,
+    "seen": 1787769884.169885,
+    "ast_hash": "f2a12eef808e000d29b8773e2d8a916c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/GhosttyFavicon.imageset/ghostty-3.png": {
+    "mtime": 1771160115.849557,
+    "seen": 1787769884.1698859,
+    "ast_hash": "1e154f173add97c0ef6797306a52ada5",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/GoogleFavicon.imageset/google.png": {
+    "mtime": 1786565534.9361424,
+    "seen": 1787769884.1698859,
+    "ast_hash": "9d8c66f03b56f170e5f7fd66c59eb9f0",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/HealthFavicon.imageset/Health@4x_1.png": {
+    "mtime": 1771160115.8496935,
+    "seen": 1787769884.1698859,
+    "ast_hash": "55f5a9710b422dc3d0c868a2ebbbc2da",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/HomeFavicon.imageset/Home@4x_1.png": {
+    "mtime": 1771160115.8498385,
+    "seen": 1787769884.169887,
+    "ast_hash": "a3565d39b56f0713754caa0d0a03a110",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/KeynoteFavicon.imageset/Keynote@4x_1.png": {
+    "mtime": 1771160115.850005,
+    "seen": 1787769884.169887,
+    "ast_hash": "3a5b1635c82696da633aeb76d7e1a0ce",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/LeagueOfLegendsFavicon.imageset/leagueoflegends.png": {
+    "mtime": 1786565534.9365108,
+    "seen": 1787769884.169887,
+    "ast_hash": "b10257890e3c8dcd8fc89b745585058c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/MailFavicon.imageset/Mail@4x_1.png": {
+    "mtime": 1771160115.8503287,
+    "seen": 1787769884.169888,
+    "ast_hash": "bb573240713af3610ea1fd975c331a87",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/MapsFavicon.imageset/Maps@4x_1.png": {
+    "mtime": 1771160115.8504963,
+    "seen": 1787769884.169888,
+    "ast_hash": "5922e657b45470c80ea2e9250cf4d2b8",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/MessagesFavicon.imageset/Messages@4x_1.png": {
+    "mtime": 1771160115.8506386,
+    "seen": 1787769884.169889,
+    "ast_hash": "6223f56c96c882e09b44b35dd2d8b476",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/MusicFavicon.imageset/Music@4x_1.png": {
+    "mtime": 1771160115.8507793,
+    "seen": 1787769884.169889,
+    "ast_hash": "69c5f4fcb04c10901774f4c383a2e24d",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/NewsFavicon.imageset/News@4x_1.png": {
+    "mtime": 1771160115.851041,
+    "seen": 1787769884.169889,
+    "ast_hash": "56572b7115c3a77c8a8d18adc219ba36",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/NotesFavicon.imageset/Notes@4x_1.png": {
+    "mtime": 1771160115.8511937,
+    "seen": 1787769884.1698902,
+    "ast_hash": "175c3d06579c2dd2e076fe5d2f3608ab",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/NumbersFavicon.imageset/Numbers@4x_1.png": {
+    "mtime": 1771160115.8514435,
+    "seen": 1787769884.1698902,
+    "ast_hash": "f03efe8dfd3dccb7be94216f7948cdbc",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/PagesFavicon.imageset/Pages@4x_1.png": {
+    "mtime": 1771160115.8515873,
+    "seen": 1787769884.1698902,
+    "ast_hash": "9cf70da5fa398a03fb5bbde6a0839ded",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/PhotosFavicon.imageset/Photos@4x_1.png": {
+    "mtime": 1771160115.851945,
+    "seen": 1787769884.1698902,
+    "ast_hash": "925230619f64288d7e19cd17b5140061",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/PodcastsFavicon.imageset/Podcasts@4x_1.png": {
+    "mtime": 1771160115.852103,
+    "seen": 1787769884.169891,
+    "ast_hash": "f75e0edfe18624fd3238fb42263d73da",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/PreviewFavicon.imageset/Preview@4x_1.png": {
+    "mtime": 1771160115.8523026,
+    "seen": 1787769884.169891,
+    "ast_hash": "b7d18a9ab336c7b12b5c80f3436d3352",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/RedditFavicon.imageset/reddit.png": {
+    "mtime": 1786565534.937278,
+    "seen": 1787769884.169891,
+    "ast_hash": "8408d92d9588db7fc38673a6f1282d93",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/RemindersFavicon.imageset/Reminders@4x_1.png": {
+    "mtime": 1771160115.8524609,
+    "seen": 1787769884.169892,
+    "ast_hash": "f455821a495f620802496b972c328a59",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/SafariFavicon.imageset/Safari@4x_1.png": {
+    "mtime": 1771160115.852626,
+    "seen": 1787769884.169892,
+    "ast_hash": "dac964c866d1a71c7e8a0361ea9e99c1",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/SettingsFavicon.imageset/Settings@4x_1.png": {
+    "mtime": 1771160115.8529077,
+    "seen": 1787769884.169893,
+    "ast_hash": "8070629048bd83229b5f76a5607e5aa6",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/ShortcutsFavicon.imageset/Shortcuts@4x_1.png": {
+    "mtime": 1771160115.8530917,
+    "seen": 1787769884.169893,
+    "ast_hash": "0c8e88045bddf8a253843731f55822fe",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/StocksFavicon.imageset/Stocks@4x_1.png": {
+    "mtime": 1771160115.8532836,
+    "seen": 1787769884.169893,
+    "ast_hash": "309cded9647bba48083314d0a0a18c19",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/TVFavicon.imageset/TV@4x_1.png": {
+    "mtime": 1771160115.8534806,
+    "seen": 1787769884.169894,
+    "ast_hash": "3167cc2430ea65ad9cab92e38dcdebef",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/TerminalFavicon.imageset/Terminal.png": {
+    "mtime": 1771160115.8542993,
+    "seen": 1787769884.169894,
+    "ast_hash": "4d817206a6349f33b0dda123d57998e5",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/TranslateFavicon.imageset/Translate@4x_1.png": {
+    "mtime": 1771160115.8547118,
+    "seen": 1787769884.169894,
+    "ast_hash": "ca6f95a3d979a309958510680fe7c872",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/VSCodeFavicon.imageset/Visual_Studio_Code_1.35_icon.png": {
+    "mtime": 1771160115.8549268,
+    "seen": 1787769884.169895,
+    "ast_hash": "003cc0fc6f6ec48674670e19ca6efc46",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/VoiceMemosFavicon.imageset/Voice_Memos@4x_1.png": {
+    "mtime": 1771160115.8550968,
+    "seen": 1787769884.169895,
+    "ast_hash": "076bf4b78bb2d06d32bcab240c600e8a",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/WalletFavicon.imageset/Wallet@4x_1.png": {
+    "mtime": 1771160115.8552742,
+    "seen": 1787769884.169895,
+    "ast_hash": "662670c739d442d7e8b8919e8a4e16f8",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/WeatherFavicon.imageset/Weather@4x_1.png": {
+    "mtime": 1771160115.8554544,
+    "seen": 1787769884.169896,
+    "ast_hash": "1265bd07dc6ac3dc40fabb1bc91b60be",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/XCodeFavicon.imageset/xcode-s-256x256_2x.png": {
+    "mtime": 1771160115.855876,
+    "seen": 1787769884.169896,
+    "ast_hash": "035afd3862237190a406b0a04de62552",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/XFavicon.imageset/x.png": {
+    "mtime": 1786565534.9377515,
+    "seen": 1787769884.169896,
+    "ast_hash": "c63a90691c81c650d95853e58e3a8ba0",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/YouTubeFavicon.imageset/youtube.png": {
+    "mtime": 1786565534.9385056,
+    "seen": 1787769884.1698968,
+    "ast_hash": "d133720d6cd238e3279f9ea849f2b6c6",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/iMessageFavicon.imageset/IMessage_logo (1).png": {
+    "mtime": 1771160115.8561168,
+    "seen": 1787769884.1698968,
+    "ast_hash": "2c2832af2bdb714f60714f677aad945b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/Favicons/iTerm2Favicon.imageset/ITerm2_v3.4_icon.png": {
+    "mtime": 1771160115.8564403,
+    "seen": 1787769884.1698968,
+    "ast_hash": "e1835b8c10f330306cfb36b04ce26dda",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/GeminiLogo.imageset/gemini-logo.png": {
+    "mtime": 1771160115.8575263,
+    "seen": 1787769884.169898,
+    "ast_hash": "ba67d4ccd8ca2d3d5b305db92f740fa0",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/GithubIcon.imageset/github.png": {
+    "mtime": 1766444443.0,
+    "seen": 1787769884.169898,
+    "ast_hash": "0b5a08329908daddeca171aa8d85a084",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/IconBackground.imageset/IconBackground.png": {
+    "mtime": 1766444444.0,
+    "seen": 1787769884.169898,
+    "ast_hash": "c1d3da8b36a9de13d7c267e3dd5a7a00",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/JournalArrow.imageset/JournalArrow.png": {
+    "mtime": 1771160115.8577418,
+    "seen": 1787769884.169899,
+    "ast_hash": "47f882649aedac730a95ef751b67fb20",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/JournalIcon.imageset/Book.png": {
+    "mtime": 1771160115.8578117,
+    "seen": 1787769884.169899,
+    "ast_hash": "fab61a0ae533462f7df19de4664eb27b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/JournalLock.imageset/Overlay.png": {
+    "mtime": 1771160115.858981,
+    "seen": 1787769884.169899,
+    "ast_hash": "4b23b3987aeb759471a1aa3ad5073a41",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/JournalPreview.imageset/Content.png": {
+    "mtime": 1786763735.552354,
+    "seen": 1787769884.1699,
+    "ast_hash": "75e2b8ad3e8b64eab38d418b3b09cb66",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/JournalReminderIcon.imageset/Alarm smart wake.png": {
+    "mtime": 1771160115.8603413,
+    "seen": 1787769884.1699,
+    "ast_hash": "969cf2bc39f504bc8bdea1afa084b10f",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/LeftArrow.imageset/LeftArrow.png": {
+    "mtime": 1786565534.939912,
+    "seen": 1787769884.1699011,
+    "ast_hash": "09f0d7eedc716872d4e7921b22b9996d",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/MainUIBackground.imageset/Content Area.png": {
+    "mtime": 1766444465.0,
+    "seen": 1787769884.1699011,
+    "ast_hash": "ec67f178fffa419fa49456bce40f28fd",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/MenuBarOffIcon.imageset/45x36_no-dot.png": {
+    "mtime": 1771160115.8604746,
+    "seen": 1787769884.169902,
+    "ast_hash": "832d93a599010a2a99f8952f3188bad3",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/MenuBarOnIcon.imageset/45 x 36_with-dot.png": {
+    "mtime": 1771160115.8606148,
+    "seen": 1787769884.169902,
+    "ast_hash": "550639155041e8bb451c59ab3fd04b9d",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/OnboardingBackground.imageset/Fades out_ (1).png": {
+    "mtime": 1766444501.0,
+    "seen": 1787769884.169902,
+    "ast_hash": "d3e16a3b6bcc24348abd40eed9b42c69",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/OnboardingBackgroundv2.imageset/Sign up_ (2).png": {
+    "mtime": 1766444466.0,
+    "seen": 1787769884.169903,
+    "ast_hash": "ef9cc70642769763a1a54ea1283db4b4",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/OnboardingHow.imageset/Security.png": {
+    "mtime": 1766444444.0,
+    "seen": 1787769884.169903,
+    "ast_hash": "6d5c97ca99c504f222beefc6064183de",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/OnboardingSecurity.imageset/Security (1).png": {
+    "mtime": 1766444444.0,
+    "seen": 1787769884.169903,
+    "ast_hash": "6614b7d6420d08d024368d3e3cf22566",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/OnboardingTimeline.imageset/timeline (1).png": {
+    "mtime": 1766444447.0,
+    "seen": 1787769884.1699042,
+    "ast_hash": "e60308423cc8141ee8195e59d9a51875",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/OnboardingUnderstanding.imageset/Scoop.png": {
+    "mtime": 1766444445.0,
+    "seen": 1787769884.1699042,
+    "ast_hash": "d48056b6de1dff230c1c17bc5e90c759",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/ReferralCardBackground.imageset/referral-card-background.png": {
+    "mtime": 1786565534.940413,
+    "seen": 1787769884.1699042,
+    "ast_hash": "461f8cb1115f66e65d25e7f809cb4c7e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/RightArrow.imageset/RightArrow.png": {
+    "mtime": 1786565534.9409356,
+    "seen": 1787769884.169905,
+    "ast_hash": "ea9ce39f433b1ff98e3001aeaced7159",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/SankeyPreview.imageset/Screenshot 2026-03-04 at 2.25.56\u202fAM.png": {
+    "mtime": 1772810234.4733093,
+    "seen": 1787769884.169906,
+    "ast_hash": "cf64a5f6b35ac81e604c579f6afcb3f4",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/ScreenRecordingPermissions.imageset/Frame 2147228556.png": {
+    "mtime": 1786565534.9416215,
+    "seen": 1787769884.169906,
+    "ast_hash": "71517d4232e5184b9aa31c075ecce30e",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/ScreenRecordingPermissions.imageset/ScreenRecordingPermissions.png": {
+    "mtime": 1786763735.5699158,
+    "seen": 1787769884.1699069,
+    "ast_hash": "d921d6697efac9f3f4eb6d6a603f6db3",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/ThumbsUp.imageset/Thumb up.png": {
+    "mtime": 1771160115.8608189,
+    "seen": 1787769884.1699069,
+    "ast_hash": "9e2259d1f5999ed942d2292f38a6a26c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/TimelineIcon.imageset/View timeline.png": {
+    "mtime": 1771160115.8610713,
+    "seen": 1787769884.169908,
+    "ast_hash": "81233e31a6786d6abc30702871b966de",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/TreemapPreview.imageset/Screenshot 2026-03-04 at 2.27.39\u202fAM.png": {
+    "mtime": 1772810234.4738429,
+    "seen": 1787769884.169908,
+    "ast_hash": "9fefcb7480239ca610d3880233fadf7b",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/WeeklyCalendarPreview.imageset/weeklycalpreview.jpg": {
+    "mtime": 1786565534.9425106,
+    "seen": 1787769884.169909,
+    "ast_hash": "65df871f2d32f62b64e0e2e1c3aac976",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/WeeklyIcon.imageset/weekly-view-icon.svg": {
+    "mtime": 1786565534.9430447,
+    "seen": 1787769884.169909,
+    "ast_hash": "311cb567382ef800c497cd72a2264378",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/WeeklyPreview.imageset/weeklypreview.jpg": {
+    "mtime": 1786565534.945914,
+    "seen": 1787769884.169909,
+    "ast_hash": "13bb914f2813d1cbbba2a3ee0fa282a8",
+    "semantic_hash": ""
+  },
+  "docs/assets/dmg-background.png": {
+    "mtime": 1771160115.9030237,
+    "seen": 1787769884.16991,
+    "ast_hash": "c276b5b55a4596e1a3e0d27b9325201b",
+    "semantic_hash": ""
+  },
+  "docs/images/DashboardPreview.png": {
+    "mtime": 1766444477.0,
+    "seen": 1787769884.16991,
+    "ast_hash": "2ee90fb8e4b4d1ff793a840975d91e7a",
+    "semantic_hash": ""
+  },
+  "docs/images/JournalPreview.png": {
+    "mtime": 1766444474.0,
+    "seen": 1787769884.16991,
+    "ast_hash": "f84b6d8861147b899fb9257e7d7795f3",
+    "semantic_hash": ""
+  },
+  "docs/images/chat.gif": {
+    "mtime": 1786565535.0980349,
+    "seen": 1787769884.1699111,
+    "ast_hash": "a4da3b9b4026427b7d3ec9b6e0ac7559",
+    "semantic_hash": ""
+  },
+  "docs/images/daily.png": {
+    "mtime": 1786565535.1066153,
+    "seen": 1787769884.1699111,
+    "ast_hash": "f05f1343d5579eb12801ab52fac31eff",
+    "semantic_hash": ""
+  },
+  "docs/images/dayflow_header.png": {
+    "mtime": 1766444497.0,
+    "seen": 1787769884.1699111,
+    "ast_hash": "536db755569e4e1b34df188b4ba448c8",
+    "semantic_hash": ""
+  },
+  "docs/images/download_dayflow.svg": {
+    "mtime": 1786565535.1078289,
+    "seen": 1787769884.169912,
+    "ast_hash": "4a9f2105a2e646da0e71935f667989ae",
+    "semantic_hash": ""
+  },
+  "docs/images/download_dayflow_button.png": {
+    "mtime": 1786565535.1085896,
+    "seen": 1787769884.169912,
+    "ast_hash": "24c3f33902b4c79288eb8333b0996d6f",
+    "semantic_hash": ""
+  },
+  "docs/images/hero_animation_1080p.gif": {
+    "mtime": 1766444476.0,
+    "seen": 1787769884.169913,
+    "ast_hash": "132eba227b038097058bcfafeef3d690",
+    "semantic_hash": ""
+  },
+  "docs/images/weekly.png": {
+    "mtime": 1786565535.1123133,
+    "seen": 1787769884.169913,
+    "ast_hash": "4399192583b126dd7146e68f5ec21c9c",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Assets.xcassets/DayflowAnimation.dataset/DayflowAnimation.mp4": {
+    "mtime": 1786763735.5323195,
+    "seen": 1787769884.169913,
+    "ast_hash": "21bbc7f53c99af7081723a4d642c0811",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Videos/DayflowAnimation.mp4": {
+    "mtime": 1786565534.9794307,
+    "seen": 1787769884.169914,
+    "ast_hash": "21bbc7f53c99af7081723a4d642c0811",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Videos/DayflowOnboarding.mp4": {
+    "mtime": 1786565535.0031002,
+    "seen": 1787769884.169914,
+    "ast_hash": "4944d50ccf56b3381dde4b5a05644351",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Videos/JournalOnboardingVideo.mp4": {
+    "mtime": 1771160115.890234,
+    "seen": 1787769884.169914,
+    "ast_hash": "abe1a5f317f247c39dc53d435fefc520",
+    "semantic_hash": ""
+  },
+  "Dayflow/Dayflow/Utilities/ObsidianVaultExportDestination.swift": {
+    "mtime": 1787769700.4925973,
+    "seen": 1787769884.1698308,
+    "ast_hash": "7627eb0deec906ebab7d92c45bde6616",
+    "semantic_hash": ""
+  }
+}

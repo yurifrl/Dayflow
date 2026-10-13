@@ -8,53 +8,50 @@ import Security
 
 /// Thread-safe manager for securely storing API keys in macOS Keychain
 final class KeychainManager {
-
-  static let shared = KeychainManager()
-
-  private let servicePrefix = "com.teleportlabs.dayflow.apikeys"
-  private let queue = DispatchQueue(label: "com.teleportlabs.dayflow.keychain", qos: .userInitiated)
-
-  private init() {}
-
-  /// Stores an API key in the keychain
-  /// - Parameters:
-  ///   - apiKey: The API key to store
-  ///   - provider: The provider identifier (e.g., "gemini", "dayflow")
-  /// - Returns: true if successful, false otherwise
-  @discardableResult
-  func store(_ apiKey: String, for provider: String) -> Bool {
-    return queue.sync {
-      guard let data = apiKey.data(using: .utf8) else { return false }
-
-      let service = "\(servicePrefix).\(provider)"
-      let itemQuery: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: service,
-        kSecAttrAccount as String: provider,
-      ]
-
-      let updateStatus = SecItemUpdate(
-        itemQuery as CFDictionary,
-        [kSecValueData as String: data] as CFDictionary
-      )
-      if updateStatus == errSecSuccess {
-        return true
-      }
-      guard updateStatus == errSecItemNotFound else {
-        return false
-      }
-
-      let addQuery: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: service,
-        kSecAttrAccount as String: provider,
-        kSecValueData as String: data,
-        kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
-      ]
-
-      return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
+    
+    
+    static let shared = KeychainManager()
+    
+    
+    private let servicePrefix = "com.teleportlabs.dayflow.apikeys"
+    private let queue = DispatchQueue(label: "com.teleportlabs.dayflow.keychain", qos: .userInitiated)
+    
+    private init() {}
+    
+    
+    /// Stores an API key in the keychain
+    /// - Parameters:
+    ///   - apiKey: The API key to store
+    ///   - provider: The provider identifier (e.g., "gemini", "ollama")
+    /// - Returns: true if successful, false otherwise
+    @discardableResult
+    func store(_ apiKey: String, for provider: String) -> Bool {
+        return queue.sync {
+            guard let data = apiKey.data(using: .utf8) else { return false }
+            
+            let service = "\(servicePrefix).\(provider)"
+            
+            // Delete any existing item first
+            let deleteQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: provider
+            ]
+            SecItemDelete(deleteQuery as CFDictionary)
+            
+            // Add new item
+            let addQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: provider,
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
+            ]
+            
+            let status = SecItemAdd(addQuery as CFDictionary, nil)
+            return status == errSecSuccess
+        }
     }
-  }
 
   /// Retrieves an API key from the keychain
   /// - Parameter provider: The provider identifier
@@ -114,11 +111,13 @@ final class KeychainManager {
 
       guard let apiKey = String(data: data, encoding: .utf8) else {
         print("❌ [KeychainManager] Failed to decode data as UTF-8 string")
+        print("   Raw data (hex): \(data.map { String(format: "%02x", $0) }.prefix(20).joined())")
         return nil
       }
 
       print("✅ [KeychainManager] Successfully retrieved key")
       print("   Key length: \(apiKey.count) characters")
+      print("   Key prefix: \(apiKey.prefix(8))...")
 
       return apiKey
     }

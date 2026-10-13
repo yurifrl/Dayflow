@@ -1,6 +1,5 @@
 import Foundation
 import GRDB
-import Sentry
 
 extension StorageManager {
   // MARK: - Screenshot Management (new - replaces video chunks)
@@ -86,88 +85,6 @@ extension StorageManager {
     let spanSeconds = lastTs - firstTs
     guard spanSeconds >= 600 else { return nil }
     return Int64(Double(bytes) * 3600 / Double(spanSeconds))
-  }
-
-  func screenshot(from row: Row) -> Screenshot {
-    Screenshot(
-      id: row["id"],
-      capturedAt: row["captured_at"],
-      filePath: row["file_path"],
-      fileSize: row["file_size"],
-      idleSecondsAtCapture: row["idle_seconds_at_capture"],
-      isDeleted: (row["is_deleted"] as? Int ?? 0) != 0,
-      frameIndex: row["frame_index"]
-    )
-  }
-
-  func fetchUnprocessedScreenshots(since oldestTimestamp: Int) -> [Screenshot] {
-    (try? timedRead("fetchUnprocessedScreenshots") { db in
-      try Row.fetchAll(
-        db,
-        sql: """
-              SELECT * FROM screenshots
-              WHERE captured_at >= ?
-                AND is_deleted = 0
-                AND id NOT IN (SELECT screenshot_id FROM batch_screenshots)
-              ORDER BY captured_at ASC
-          """, arguments: [oldestTimestamp]
-      )
-      .map(screenshot(from:))
-    }) ?? []
-  }
-
-  func saveBatchWithScreenshots(startTs: Int, endTs: Int, screenshotIds: [Int64]) -> Int64? {
-    guard !screenshotIds.isEmpty else { return nil }
-    var batchId: Int64 = 0
-
-    try? timedWrite("saveBatchWithScreenshots(\(screenshotIds.count))") { db in
-      try db.execute(
-        sql: """
-              INSERT INTO analysis_batches(batch_start_ts, batch_end_ts)
-              VALUES (?, ?)
-          """, arguments: [startTs, endTs])
-      batchId = db.lastInsertedRowID
-
-      for id in screenshotIds {
-        try db.execute(
-          sql: """
-                INSERT INTO batch_screenshots(batch_id, screenshot_id)
-                VALUES (?, ?)
-            """, arguments: [batchId, id])
-      }
-    }
-    return batchId == 0 ? nil : batchId
-  }
-
-  func screenshotsForBatch(_ batchId: Int64) -> [Screenshot] {
-    (try? timedRead("screenshotsForBatch") { db in
-      try Row.fetchAll(
-        db,
-        sql: """
-              SELECT s.* FROM batch_screenshots bs
-              JOIN screenshots s ON s.id = bs.screenshot_id
-              WHERE bs.batch_id = ?
-                AND s.is_deleted = 0
-              ORDER BY s.captured_at ASC
-          """, arguments: [batchId]
-      )
-      .map(screenshot(from:))
-    }) ?? []
-  }
-
-  func fetchScreenshotsInTimeRange(startTs: Int, endTs: Int) -> [Screenshot] {
-    (try? timedRead("fetchScreenshotsInTimeRange") { db in
-      try Row.fetchAll(
-        db,
-        sql: """
-              SELECT * FROM screenshots
-              WHERE captured_at >= ? AND captured_at <= ?
-                AND is_deleted = 0
-              ORDER BY captured_at ASC
-          """, arguments: [startTs, endTs]
-      )
-      .map(screenshot(from:))
-    }) ?? []
   }
 
 }

@@ -29,10 +29,9 @@ struct SetupContinueButton: View {
     Button(action: isEnabled ? action : {}) {
       HStack(alignment: .center, spacing: 6) {
         Text(title)
-          .font(.custom("Figtree", size: 14))
-          .fontWeight(.regular)
-        Image(systemName: "chevron.right")
-          .font(.system(size: 12, weight: .medium))
+          .font(.custom("Nunito", size: 16))
+          .fontWeight(.semibold)
+          .foregroundColor(.white)
       }
       .foregroundColor(.white)
       .padding(.leading, 36)

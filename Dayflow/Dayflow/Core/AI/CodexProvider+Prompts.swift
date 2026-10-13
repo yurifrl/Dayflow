@@ -3,7 +3,6 @@ import Foundation
 
 protocol ChatGPTTimelinePromptSupporting: TimelineOutputSupporting {}
 
-extension CodexProvider: ChatGPTTimelinePromptSupporting {}
 
 extension ChatGPTTimelinePromptSupporting {
   // MARK: - Codex prompt builders

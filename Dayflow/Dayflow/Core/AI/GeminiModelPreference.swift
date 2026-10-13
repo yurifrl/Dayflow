@@ -6,64 +6,51 @@
 import Foundation
 
 enum GeminiModel: String, Codable, CaseIterable {
-  case flash38 = "gemini-3.8-flash"
-  case flash37 = "gemini-3.7-flash"
-  case flash36 = "gemini-3.6-flash"
-  case flash35 = "gemini-3.5-flash"
-  case flashLite35 = "gemini-3.5-flash-lite"
+  case flashLite31Preview = "gemini-3.1-flash-lite-preview"
+  case flash3Preview = "gemini-3-flash-preview"
+  case flash25 = "gemini-2.5-flash"
 
   var displayName: String {
     switch self {
-    case .flash38: return String(localized: "Gemini 3.8 Flash")
-    case .flash37: return String(localized: "Gemini 3.7 Flash")
-    case .flash36: return String(localized: "Gemini 3.6 Flash")
-    case .flash35: return String(localized: "Gemini 3.5 Flash")
-    case .flashLite35: return String(localized: "Gemini 3.5 Flash-Lite")
+    case .flashLite31Preview: return "Gemini 3.1 Flash-Lite Preview"
+    case .flash3Preview: return "Gemini 3 Flash"
+    case .flash25: return "Gemini 2.5 Flash"
     }
   }
 
   var shortLabel: String {
     switch self {
-    case .flash38: return String(localized: "3.8 Flash")
-    case .flash37: return String(localized: "3.7 Flash")
-    case .flash36: return String(localized: "3.6 Flash")
-    case .flash35: return String(localized: "3.5 Flash")
-    case .flashLite35: return String(localized: "3.5 Flash-Lite")
+    case .flashLite31Preview: return "3.1 Flash-Lite"
+    case .flash3Preview: return "3 Flash"
+    case .flash25: return "2.5 Flash"
     }
   }
 }
 
 struct GeminiModelPreference: Codable {
-  // Keep the storage key stable to preserve existing users' selected models.
-  private static let storageKey = "geminiSelectedModel_v4"
+  // Key bump intentionally hard-resets existing users to the new ordering.
+  private static let storageKey = "geminiSelectedModel_v2"
 
   let primary: GeminiModel
 
-  static let `default` = GeminiModelPreference(primary: .flash38)
+  static let `default` = GeminiModelPreference(primary: .flashLite31Preview)
 
   var orderedModels: [GeminiModel] {
     switch primary {
-    case .flash38: return [.flash38, .flash37, .flash36, .flash35, .flashLite35]
-    case .flash37: return [.flash37, .flash36, .flash35, .flashLite35]
-    case .flash36: return [.flash36, .flash35, .flashLite35]
-    case .flash35: return [.flash35, .flashLite35]
-    case .flashLite35: return [.flashLite35]
+    case .flashLite31Preview: return [.flashLite31Preview, .flash3Preview, .flash25]
+    case .flash3Preview: return [.flash3Preview, .flash25]
+    case .flash25: return [.flash25]
     }
   }
 
   var fallbackSummary: String {
     switch primary {
-    case .flash38:
-      return
-        "Falls back to 3.7 Flash, then 3.6 Flash, then 3.5 Flash, then 3.5 Flash-Lite if needed"
-    case .flash37:
-      return "Falls back to 3.6 Flash, then 3.5 Flash, then 3.5 Flash-Lite if needed"
-    case .flash36:
-      return "Falls back to 3.5 Flash, then 3.5 Flash-Lite if needed"
-    case .flash35:
-      return "Falls back to 3.5 Flash-Lite if needed"
-    case .flashLite35:
-      return "Always uses 3.5 Flash-Lite"
+    case .flashLite31Preview:
+      return "Falls back to 3 Flash, then 2.5 Flash if needed"
+    case .flash3Preview:
+      return "Falls back to 2.5 Flash if 3 Flash is unavailable"
+    case .flash25:
+      return "Always uses 2.5 Flash"
     }
   }
 

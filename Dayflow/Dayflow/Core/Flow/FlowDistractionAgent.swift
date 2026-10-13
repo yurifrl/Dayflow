@@ -183,8 +183,7 @@ final class FlowDistractionAgent: ObservableObject {
           prompt: prompt,
           workingDirectory: directory,
           model: model,
-          reasoningEffort: effort,
-          codexConfigOverrides: Self.codexConfigOverrides
+          reasoningEffort: effort
         )
         for try await event in stream {
           switch event {
@@ -365,7 +364,6 @@ final class FlowDistractionAgent: ObservableObject {
     let textOnly = settings.textOnly
     let shotHeight = settings.screenshotHeight
     let quality = settings.jpegQuality
-    let timeout = settings.tickTimeoutSeconds
     let startedAt = Date()
     // Which app is in front goes on the timeline entry (icon + merge key).
     let front = FlowSessionTimeline.frontmostApp()
@@ -392,10 +390,7 @@ final class FlowDistractionAgent: ObservableObject {
           workingDirectory: directory,
           imagePaths: imagePaths,
           model: model,
-          reasoningEffort: effort,
-          codexResumeSessionId: sessionId,
-          codexConfigOverrides: Self.codexConfigOverrides,
-          timeoutSeconds: timeout
+          reasoningEffort: effort
         )
         if result.exitCode == 0 {
           replyText = result.stdout

@@ -14,11 +14,10 @@ final class StatusBarController: NSObject {
     popover.animates = true
 
     if let button = statusItem.button {
-      button.imageScaling = .scaleProportionallyDown
-      button.imagePosition = .imageOnly
-
+      // Set initial icon based on current recording state
       let isRecording = AppState.shared.isRecording
-      button.image = menuBarIcon(isRecording: isRecording)
+      button.image = NSImage(named: isRecording ? "MenuBarOnIcon" : "MenuBarOffIcon")
+      button.imagePosition = .imageOnly
       button.target = self
       button.action = #selector(togglePopover(_:))
     }
@@ -32,14 +31,7 @@ final class StatusBarController: NSObject {
   }
 
   private func updateIcon(isRecording: Bool) {
-    statusItem.button?.image = menuBarIcon(isRecording: isRecording)
-  }
-
-  private func menuBarIcon(isRecording: Bool) -> NSImage? {
-    let name = isRecording ? "MenuBarOnIcon" : "MenuBarOffIcon"
-    guard let image = NSImage(named: name)?.copy() as? NSImage else { return nil }
-    image.size = NSSize(width: 22, height: 18)
-    return image
+    statusItem.button?.image = NSImage(named: isRecording ? "MenuBarOnIcon" : "MenuBarOffIcon")
   }
 
   @objc private func togglePopover(_ sender: Any?) {

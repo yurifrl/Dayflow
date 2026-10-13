@@ -33,8 +33,14 @@ struct LoginShellRunner {
   /// `mcp_servers.<name>` table that fails config parsing with
   /// "invalid transport" — which used to push every run into the temporary
   /// CODEX_HOME fallback and lose resumable sessions.
-  static func getCodexMCPServerNames(executableURL: URL) -> [String] {
-    let command = "\(shellEscape(executableURL.path)) mcp list --json"
+  static func getCodexMCPServerNames(executableURL: URL? = nil) -> [String] {
+    guard let resolvedExecutableURL =
+      executableURL
+      ?? CodexExecutableResolver.shared.resolve()?.executableURL
+    else {
+      return []
+    }
+    let command = "\(shellEscape(resolvedExecutableURL.path)) mcp list --json"
     let result = run(command, timeout: 10)
     guard result.exitCode == 0,
       let data = result.stdout.data(using: .utf8)
